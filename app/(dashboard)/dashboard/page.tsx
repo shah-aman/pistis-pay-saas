@@ -1,287 +1,269 @@
 'use client';
 
-import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardFooter
-} from '@/components/ui/card';
-import { customerPortalAction } from '@/lib/payments/actions';
-import { useActionState } from 'react';
-import { TeamDataWithMembers, User } from '@/lib/db/schema';
-import { removeTeamMember, inviteTeamMember } from '@/app/(login)/actions';
+import { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import useSWR from 'swr';
-import { Suspense } from 'react';
-import { Input } from '@/components/ui/input';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Label } from '@/components/ui/label';
-import { Loader2, PlusCircle } from 'lucide-react';
+import { DollarSign, TrendingUp, CreditCard, Calendar, Plus } from 'lucide-react';
+import { format } from 'date-fns';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { CreatePaymentModal } from '@/components/dashboard/create-payment-modal';
 
-type ActionState = {
-  error?: string;
-  success?: string;
-};
+const fetcher = (url: string) => fetch(url, {
+  credentials: 'include', // Include cookies in requests
+}).then((res) => res.json());
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
-
-function SubscriptionSkeleton() {
-  return (
-    <Card className="mb-8 h-[140px]">
-      <CardHeader>
-        <CardTitle>Team Subscription</CardTitle>
-      </CardHeader>
-    </Card>
-  );
-}
-
-function ManageSubscription() {
-  const { data: teamData } = useSWR<TeamDataWithMembers>('/api/team', fetcher);
-
-  return (
-    <Card className="mb-8">
-      <CardHeader>
-        <CardTitle>Team Subscription</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
-            <div className="mb-4 sm:mb-0">
-              <p className="font-medium">
-                Current Plan: {teamData?.planName || 'Free'}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                {teamData?.subscriptionStatus === 'active'
-                  ? 'Billed monthly'
-                  : teamData?.subscriptionStatus === 'trialing'
-                  ? 'Trial period'
-                  : 'No active subscription'}
-              </p>
-            </div>
-            <form action={customerPortalAction}>
-              <Button type="submit" variant="outline">
-                Manage Subscription
-              </Button>
-            </form>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function TeamMembersSkeleton() {
-  return (
-    <Card className="mb-8 h-[140px]">
-      <CardHeader>
-        <CardTitle>Team Members</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="animate-pulse space-y-4 mt-1">
-          <div className="flex items-center space-x-4">
-            <div className="size-8 rounded-full bg-gray-200"></div>
-            <div className="space-y-2">
-              <div className="h-4 w-32 bg-gray-200 rounded"></div>
-              <div className="h-3 w-14 bg-gray-200 rounded"></div>
-            </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function TeamMembers() {
-  const { data: teamData } = useSWR<TeamDataWithMembers>('/api/team', fetcher);
-  const [removeState, removeAction, isRemovePending] = useActionState<
-    ActionState,
-    FormData
-  >(removeTeamMember, {});
-
-  const getUserDisplayName = (user: Pick<User, 'id' | 'name' | 'email'>) => {
-    return user.name || user.email || 'Unknown User';
+interface DashboardStats {
+  stats: {
+    todayRevenue: number;
+    monthRevenue: number;
+    allTimeRevenue: number;
+    transactionCount: number;
   };
+  dailyRevenue: Array<{
+    date: string;
+    revenue: number;
+  }>;
+  recentTransactions: Array<{
+    id: string;
+    amountUsdc: number;
+    status: string;
+    customerWallet: string | null;
+    createdAt: string;
+    description: string | null;
+  }>;
+}
 
-  if (!teamData?.teamMembers?.length) {
+function formatUSDC(amount: number | null | undefined): string {
+  if (!amount) return '$0.00';
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(amount));
+}
+
+function formatWallet(wallet: string | null): string {
+  if (!wallet) return 'N/A';
+  return `${wallet.slice(0, 4)}...${wallet.slice(-4)}`;
+}
+
+function getStatusColor(status: string): string {
+  switch (status.toLowerCase()) {
+    case 'completed':
+      return 'text-green-600 bg-green-50';
+    case 'pending':
+      return 'text-yellow-600 bg-yellow-50';
+    case 'failed':
+      return 'text-red-600 bg-red-50';
+    default:
+      return 'text-gray-600 bg-gray-50';
+  }
+}
+
+function StatsCard({ title, value, icon: Icon, description }: { title: string; value: string; icon: any; description?: string }) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <Icon className="h-4 w-4 text-muted-foreground" />
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold">{value}</div>
+        {description && <p className="text-xs text-muted-foreground mt-1">{description}</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
+function RevenueChart({ data }: { data: Array<{ date: string; revenue: number }> }) {
+  const chartData = data.map((item) => ({
+    date: format(new Date(item.date), 'MMM dd'),
+    revenue: Number(item.revenue),
+  }));
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Revenue Overview</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ResponsiveContainer width="100%" height={300}>
+          <AreaChart data={chartData}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="date" />
+            <YAxis />
+            <Tooltip 
+              formatter={(value: number) => formatUSDC(value)}
+              labelStyle={{ color: '#000' }}
+            />
+            <Area 
+              type="monotone" 
+              dataKey="revenue" 
+              stroke="#f97316" 
+              fill="#f97316" 
+              fillOpacity={0.2}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </CardContent>
+    </Card>
+  );
+}
+
+function RecentTransactions({ transactions }: { transactions: DashboardStats['recentTransactions'] }) {
+  if (transactions.length === 0) {
     return (
-      <Card className="mb-8">
+      <Card>
         <CardHeader>
-          <CardTitle>Team Members</CardTitle>
+          <CardTitle>Recent Transactions</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground">No team members yet.</p>
+          <p className="text-sm text-muted-foreground">No transactions yet</p>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <Card className="mb-8">
-      <CardHeader>
-        <CardTitle>Team Members</CardTitle>
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle>Recent Transactions</CardTitle>
+        <Link href="/dashboard/transactions">
+          <Button variant="outline" size="sm">View All</Button>
+        </Link>
       </CardHeader>
       <CardContent>
-        <ul className="space-y-4">
-          {teamData.teamMembers.map((member, index) => (
-            <li key={member.id} className="flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                <Avatar>
-                  {/* 
-                    This app doesn't save profile images, but here
-                    is how you'd show them:
-
-                    <AvatarImage
-                      src={member.user.image || ''}
-                      alt={getUserDisplayName(member.user)}
-                    />
-                  */}
-                  <AvatarFallback>
-                    {getUserDisplayName(member.user)
-                      .split(' ')
-                      .map((n) => n[0])
-                      .join('')}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="font-medium">
-                    {getUserDisplayName(member.user)}
-                  </p>
-                  <p className="text-sm text-muted-foreground capitalize">
-                    {member.role}
-                  </p>
+        <div className="space-y-4">
+          {transactions.map((tx) => (
+            <div key={tx.id} className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0">
+              <div className="space-y-1">
+                <p className="text-sm font-medium">
+                  {tx.description || 'Payment'}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {formatWallet(tx.customerWallet)} • {format(new Date(tx.createdAt), 'MMM dd, yyyy HH:mm')}
+                </p>
+              </div>
+              <div className="text-right space-y-1">
+                <p className="text-sm font-semibold">{formatUSDC(tx.amountUsdc)}</p>
+                <div className="flex items-center gap-2 justify-end">
+                  <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(tx.status)}`}>
+                    {tx.status}
+                  </span>
+                  {tx.status === 'completed' && (
+                    <Link
+                      href={`/dashboard/receipt/${tx.id}`}
+                      className="text-xs text-orange-600 hover:text-orange-700"
+                    >
+                      Receipt
+                    </Link>
+                  )}
                 </div>
               </div>
-              {index > 1 ? (
-                <form action={removeAction}>
-                  <input type="hidden" name="memberId" value={member.id} />
-                  <Button
-                    type="submit"
-                    variant="outline"
-                    size="sm"
-                    disabled={isRemovePending}
-                  >
-                    {isRemovePending ? 'Removing...' : 'Remove'}
-                  </Button>
-                </form>
-              ) : null}
-            </li>
+            </div>
           ))}
-        </ul>
-        {removeState?.error && (
-          <p className="text-red-500 mt-4">{removeState.error}</p>
-        )}
+        </div>
       </CardContent>
     </Card>
   );
 }
 
-function InviteTeamMemberSkeleton() {
-  return (
-    <Card className="h-[260px]">
-      <CardHeader>
-        <CardTitle>Invite Team Member</CardTitle>
-      </CardHeader>
-    </Card>
-  );
-}
+export default function DashboardPage() {
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const { data, error, isLoading, mutate } = useSWR<DashboardStats>('/api/dashboard/stats', fetcher);
 
-function InviteTeamMember() {
-  const { data: user } = useSWR<User>('/api/user', fetcher);
-  const isOwner = user?.role === 'owner';
-  const [inviteState, inviteAction, isInvitePending] = useActionState<
-    ActionState,
-    FormData
-  >(inviteTeamMember, {});
+  if (error) {
+    return (
+      <section className="flex-1 p-4 lg:p-8">
+        <div className="text-center py-12">
+          <p className="text-red-500">Failed to load dashboard data</p>
+        </div>
+      </section>
+    );
+  }
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Invite Team Member</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form action={inviteAction} className="space-y-4">
-          <div>
-            <Label htmlFor="email" className="mb-2">
-              Email
-            </Label>
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              placeholder="Enter email"
-              required
-              disabled={!isOwner}
-            />
-          </div>
-          <div>
-            <Label>Role</Label>
-            <RadioGroup
-              defaultValue="member"
-              name="role"
-              className="flex space-x-4"
-              disabled={!isOwner}
-            >
-              <div className="flex items-center space-x-2 mt-2">
-                <RadioGroupItem value="member" id="member" />
-                <Label htmlFor="member">Member</Label>
-              </div>
-              <div className="flex items-center space-x-2 mt-2">
-                <RadioGroupItem value="owner" id="owner" />
-                <Label htmlFor="owner">Owner</Label>
-              </div>
-            </RadioGroup>
-          </div>
-          {inviteState?.error && (
-            <p className="text-red-500">{inviteState.error}</p>
-          )}
-          {inviteState?.success && (
-            <p className="text-green-500">{inviteState.success}</p>
-          )}
-          <Button
-            type="submit"
-            className="bg-orange-500 hover:bg-orange-600 text-white"
-            disabled={isInvitePending || !isOwner}
-          >
-            {isInvitePending ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Inviting...
-              </>
-            ) : (
-              <>
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Invite Member
-              </>
-            )}
-          </Button>
-        </form>
-      </CardContent>
-      {!isOwner && (
-        <CardFooter>
-          <p className="text-sm text-muted-foreground">
-            You must be a team owner to invite new members.
-          </p>
-        </CardFooter>
-      )}
-    </Card>
-  );
-}
+  if (isLoading) {
+    return (
+      <section className="flex-1 p-4 lg:p-8">
+        <h1 className="text-lg lg:text-2xl font-medium mb-6">Dashboard</h1>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
+          {[...Array(4)].map((_, i) => (
+            <Card key={i} className="animate-pulse">
+              <CardHeader className="h-20" />
+            </Card>
+          ))}
+        </div>
+      </section>
+    );
+  }
 
-export default function SettingsPage() {
+  const stats = data?.stats || {
+    todayRevenue: 0,
+    monthRevenue: 0,
+    allTimeRevenue: 0,
+    transactionCount: 0,
+  };
+
+  const dailyRevenue = data?.dailyRevenue || [];
+  const recentTransactions = data?.recentTransactions || [];
+
   return (
     <section className="flex-1 p-4 lg:p-8">
-      <h1 className="text-lg lg:text-2xl font-medium mb-6">Team Settings</h1>
-      <Suspense fallback={<SubscriptionSkeleton />}>
-        <ManageSubscription />
-      </Suspense>
-      <Suspense fallback={<TeamMembersSkeleton />}>
-        <TeamMembers />
-      </Suspense>
-      <Suspense fallback={<InviteTeamMemberSkeleton />}>
-        <InviteTeamMember />
-      </Suspense>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-lg lg:text-2xl font-medium">Dashboard</h1>
+        <div className="flex items-center gap-2">
+          <Link href="/dashboard/transactions">
+            <Button variant="outline">View Transactions</Button>
+          </Link>
+          <Button onClick={() => setIsPaymentModalOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create Payment Link
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
+        <StatsCard
+          title="Today's Revenue"
+          value={formatUSDC(stats.todayRevenue)}
+          icon={DollarSign}
+          description="Revenue from today"
+        />
+        <StatsCard
+          title="This Month"
+          value={formatUSDC(stats.monthRevenue)}
+          icon={TrendingUp}
+          description="Revenue this month"
+        />
+        <StatsCard
+          title="All Time"
+          value={formatUSDC(stats.allTimeRevenue)}
+          icon={CreditCard}
+          description="Total revenue"
+        />
+        <StatsCard
+          title="Transactions"
+          value={stats.transactionCount.toString()}
+          icon={Calendar}
+          description="Total completed"
+        />
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 mb-6">
+        <RevenueChart data={dailyRevenue} />
+        <RecentTransactions transactions={recentTransactions} />
+      </div>
+
+      <CreatePaymentModal
+        isOpen={isPaymentModalOpen}
+        onClose={() => {
+          setIsPaymentModalOpen(false);
+          mutate(); // Refresh dashboard stats
+        }}
+      />
     </section>
   );
 }

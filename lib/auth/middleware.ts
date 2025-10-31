@@ -1,6 +1,5 @@
 import { z } from 'zod';
-import { TeamDataWithMembers, User } from '@/lib/db/schema';
-import { getTeamForUser, getUser } from '@/lib/db/queries';
+import { getCurrentUser } from '@/app/(login)/actions';
 import { redirect } from 'next/navigation';
 
 export type ActionState = {
@@ -31,7 +30,7 @@ export function validatedAction<S extends z.ZodType<any, any>, T>(
 type ValidatedActionWithUserFunction<S extends z.ZodType<any, any>, T> = (
   data: z.infer<S>,
   formData: FormData,
-  user: User
+  user: Awaited<ReturnType<typeof getCurrentUser>>
 ) => Promise<T>;
 
 export function validatedActionWithUser<S extends z.ZodType<any, any>, T>(
@@ -39,7 +38,7 @@ export function validatedActionWithUser<S extends z.ZodType<any, any>, T>(
   action: ValidatedActionWithUserFunction<S, T>
 ) {
   return async (prevState: ActionState, formData: FormData) => {
-    const user = await getUser();
+    const user = await getCurrentUser();
     if (!user) {
       throw new Error('User is not authenticated');
     }
@@ -50,26 +49,5 @@ export function validatedActionWithUser<S extends z.ZodType<any, any>, T>(
     }
 
     return action(result.data, formData, user);
-  };
-}
-
-type ActionWithTeamFunction<T> = (
-  formData: FormData,
-  team: TeamDataWithMembers
-) => Promise<T>;
-
-export function withTeam<T>(action: ActionWithTeamFunction<T>) {
-  return async (formData: FormData): Promise<T> => {
-    const user = await getUser();
-    if (!user) {
-      redirect('/sign-in');
-    }
-
-    const team = await getTeamForUser();
-    if (!team) {
-      throw new Error('Team not found');
-    }
-
-    return action(formData, team);
   };
 }

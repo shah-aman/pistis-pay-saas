@@ -1,0 +1,1151 @@
+
+================================================================================
+DETAILED TASK BREAKDOWN & IMPLEMENTATION CHECKLIST
+SolaPay MVP - 4-Day Sprint with Sphere Integration
+================================================================================
+
+SPRINT DURATION: 4 days (32 hours total)
+TEAM: 1-2 developers with AI assistance (Cursor + Claude Sonnet)
+METHODOLOGY: Agile with daily deliverables
+
+================================================================================
+DAY 1: FOUNDATION & INFRASTRUCTURE
+Timeline: 8 hours | Priority: P0 (Critical Path)
+================================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TASK 1.1: PROJECT INITIALIZATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Duration: 1 hour
+Dependencies: None
+Owner: Developer
+
+SUBTASKS:
+☐ 1.1.1 Create Next.js 14 project
+   Command: npx create-next-app@latest solapay --typescript --tailwind --app
+   Verify: Project runs on localhost:3000
+
+☐ 1.1.2 Initialize Git repository
+   Commands:
+   - git init
+   - git add .
+   - git commit -m "Initial commit: Next.js 14 setup"
+   - Create GitHub repo and push
+
+☐ 1.1.3 Setup project structure
+   Create directories:
+   - /app/(auth)/login
+   - /app/(auth)/signup
+   - /app/(dashboard)/layout.tsx
+   - /app/(dashboard)/page.tsx
+   - /app/(dashboard)/transactions
+   - /app/(dashboard)/subscriptions
+   - /app/(dashboard)/settings
+   - /app/api/auth/[...nextauth]
+   - /components/ui (shadcn)
+   - /components/dashboard
+   - /components/payments
+   - /lib/sphere.ts
+   - /lib/supabase.ts
+   - /lib/utils.ts
+   - /types/*.ts
+
+☐ 1.1.4 Install dependencies
+   npm install:
+   - @stratosphere-network/wallet (Sphere SDK)
+   - @supabase/supabase-js
+   - @solana/wallet-adapter-react
+   - @solana/wallet-adapter-react-ui
+   - @solana/wallet-adapter-wallets
+   - @tanstack/react-query
+   - recharts
+   - zod (validation)
+   - date-fns
+   - lucide-react (icons)
+
+☐ 1.1.5 Setup shadcn/ui
+   Commands:
+   - npx shadcn-ui@latest init
+   - npx shadcn-ui@latest add button card input label select table
+
+☐ 1.1.6 Create .env.local
+   Variables:
+   - NEXT_PUBLIC_SUPABASE_URL=
+   - NEXT_PUBLIC_SUPABASE_ANON_KEY=
+   - SUPABASE_SERVICE_ROLE_KEY=
+   - SPHERE_API_KEY=
+   - SPHERE_WEBHOOK_SECRET=
+   - NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+☐ 1.1.7 Create .cursorrules file
+   Copy from sphere_stitched_mvp_strategy.txt
+
+☐ 1.1.8 Setup TypeScript config
+   Strict mode enabled
+   Path aliases configured (@/*)
+
+ACCEPTANCE CRITERIA:
+✓ Project runs without errors
+✓ All dependencies installed
+✓ Git initialized and pushed to GitHub
+✓ Folder structure created
+✓ Environment variables configured
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TASK 1.2: SUPABASE SETUP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Duration: 1.5 hours
+Dependencies: 1.1 (Project initialization)
+Owner: Developer
+
+SUBTASKS:
+☐ 1.2.1 Create Supabase project
+   - Go to supabase.com
+   - Create new project: "solapay-mvp"
+   - Note: Project URL, anon key, service role key
+
+☐ 1.2.2 Create database schema
+   Execute SQL in Supabase SQL Editor:
+
+   ```sql
+   -- Enable UUID extension
+   CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+   -- Merchants table
+   CREATE TABLE merchants (
+     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+     email VARCHAR(255) UNIQUE NOT NULL,
+     business_name VARCHAR(255) NOT NULL,
+     country VARCHAR(2) NOT NULL,
+     business_type VARCHAR(50) NOT NULL,
+     wallet_address VARCHAR(44),
+     sphere_account_id VARCHAR(255),
+     sphere_api_key_encrypted TEXT,
+     created_at TIMESTAMP DEFAULT NOW(),
+     updated_at TIMESTAMP DEFAULT NOW()
+   );
+
+   -- Payments table
+   CREATE TABLE payments (
+     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+     merchant_id UUID REFERENCES merchants(id) ON DELETE CASCADE,
+     sphere_payment_id VARCHAR(255) UNIQUE NOT NULL,
+     customer_wallet VARCHAR(44),
+     amount_usdc DECIMAL(18, 6) NOT NULL,
+     status VARCHAR(20) NOT NULL DEFAULT 'pending',
+     description TEXT,
+     redirect_url TEXT,
+     metadata JSONB,
+     tx_signature VARCHAR(88),
+     created_at TIMESTAMP DEFAULT NOW(),
+     completed_at TIMESTAMP
+   );
+
+   -- Subscription plans table
+   CREATE TABLE subscription_plans (
+     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+     merchant_id UUID REFERENCES merchants(id) ON DELETE CASCADE,
+     plan_name VARCHAR(100) NOT NULL,
+     amount_usdc DECIMAL(18, 6) NOT NULL,
+     billing_period VARCHAR(20) NOT NULL,
+     trial_days INTEGER DEFAULT 0,
+     loop_plan_id VARCHAR(255),
+     active BOOLEAN DEFAULT TRUE,
+     created_at TIMESTAMP DEFAULT NOW()
+   );
+
+   -- Subscriptions table
+   CREATE TABLE subscriptions (
+     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+     merchant_id UUID REFERENCES merchants(id) ON DELETE CASCADE,
+     plan_id UUID REFERENCES subscription_plans(id),
+     customer_wallet VARCHAR(44) NOT NULL,
+     loop_subscription_id VARCHAR(255),
+     status VARCHAR(20) NOT NULL DEFAULT 'active',
+     current_period_start TIMESTAMP NOT NULL,
+     current_period_end TIMESTAMP NOT NULL,
+     created_at TIMESTAMP DEFAULT NOW(),
+     cancelled_at TIMESTAMP
+   );
+
+   -- API keys table
+   CREATE TABLE api_keys (
+     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+     merchant_id UUID REFERENCES merchants(id) ON DELETE CASCADE,
+     key_hash VARCHAR(255) NOT NULL,
+     key_prefix VARCHAR(10) NOT NULL,
+     name VARCHAR(100),
+     last_used_at TIMESTAMP,
+     created_at TIMESTAMP DEFAULT NOW(),
+     revoked_at TIMESTAMP
+   );
+
+   -- Webhooks table
+   CREATE TABLE webhooks (
+     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+     merchant_id UUID REFERENCES merchants(id) ON DELETE CASCADE,
+     url VARCHAR(500) NOT NULL,
+     secret VARCHAR(255) NOT NULL,
+     events VARCHAR[] NOT NULL,
+     active BOOLEAN DEFAULT TRUE,
+     created_at TIMESTAMP DEFAULT NOW()
+   );
+
+   -- Withdrawals table
+   CREATE TABLE withdrawals (
+     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+     merchant_id UUID REFERENCES merchants(id) ON DELETE CASCADE,
+     amount_usdc DECIMAL(18, 6) NOT NULL,
+     amount_fiat DECIMAL(18, 2) NOT NULL,
+     currency VARCHAR(3) NOT NULL,
+     bank_account_last4 VARCHAR(4),
+     sphere_withdrawal_id VARCHAR(255),
+     status VARCHAR(20) NOT NULL DEFAULT 'pending',
+     created_at TIMESTAMP DEFAULT NOW(),
+     completed_at TIMESTAMP
+   );
+
+   -- Indexes for performance
+   CREATE INDEX idx_payments_merchant ON payments(merchant_id);
+   CREATE INDEX idx_payments_status ON payments(status);
+   CREATE INDEX idx_payments_created ON payments(created_at DESC);
+   CREATE INDEX idx_subscriptions_merchant ON subscriptions(merchant_id);
+   CREATE INDEX idx_subscriptions_status ON subscriptions(status);
+   ```
+
+☐ 1.2.3 Setup Row Level Security (RLS)
+   ```sql
+   -- Enable RLS on all tables
+   ALTER TABLE merchants ENABLE ROW LEVEL SECURITY;
+   ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
+   ALTER TABLE subscription_plans ENABLE ROW LEVEL SECURITY;
+   ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
+   ALTER TABLE api_keys ENABLE ROW LEVEL SECURITY;
+   ALTER TABLE webhooks ENABLE ROW LEVEL SECURITY;
+   ALTER TABLE withdrawals ENABLE ROW LEVEL SECURITY;
+
+   -- RLS policies (merchants can only see their own data)
+   CREATE POLICY "Merchants can view own data" ON merchants
+     FOR SELECT USING (auth.uid()::text = id::text);
+
+   CREATE POLICY "Merchants can view own payments" ON payments
+     FOR SELECT USING (merchant_id IN (
+       SELECT id FROM merchants WHERE auth.uid()::text = id::text
+     ));
+
+   -- Add similar policies for other tables
+   ```
+
+☐ 1.2.4 Setup Supabase Auth
+   - Enable email auth in Supabase dashboard
+   - Configure email templates
+   - Set redirect URLs
+
+☐ 1.2.5 Create Supabase client in Next.js
+   File: /lib/supabase.ts
+   ```typescript
+   import { createClient } from '@supabase/supabase-js'
+
+   export const supabase = createClient(
+     process.env.NEXT_PUBLIC_SUPABASE_URL!,
+     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+   )
+
+   export const supabaseAdmin = createClient(
+     process.env.NEXT_PUBLIC_SUPABASE_URL!,
+     process.env.SUPABASE_SERVICE_ROLE_KEY!
+   )
+   ```
+
+☐ 1.2.6 Test database connection
+   Create test script to verify connection
+   Insert/query test merchant
+
+ACCEPTANCE CRITERIA:
+✓ Supabase project created
+✓ All tables created successfully
+✓ RLS policies active
+✓ Auth configured
+✓ Client library connected
+✓ Test query successful
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TASK 1.3: SPHERE SDK INTEGRATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Duration: 2 hours
+Dependencies: 1.1 (Project initialization)
+Owner: Developer
+
+CURSOR PROMPT:
+```
+Setup Sphere Labs payment infrastructure for USDC payments on Solana.
+
+Requirements:
+1. Install @stratosphere-network/wallet
+2. Create Sphere service class in /lib/sphere.ts with methods:
+   - initializeSphere(apiKey: string)
+   - createPaymentLink(amount, description, redirectUrl)
+   - getPayment(paymentId)
+   - listPayments(merchantId, filters)
+3. Type definitions for Sphere responses
+4. Error handling with custom errors
+5. Test in Sphere sandbox environment
+
+Write tests first using Jest, then implementation.
+
+Context: @lib/sphere.ts @types/sphere.ts
+```
+
+SUBTASKS:
+☐ 1.3.1 Create Sphere account
+   - Go to spherepay.co
+   - Sign up for developer account
+   - Get API key from dashboard
+   - Add to .env.local: SPHERE_API_KEY=
+
+☐ 1.3.2 Create Sphere service class
+   File: /lib/sphere.ts
+   Methods:
+   - createPaymentLink()
+   - getPaymentStatus()
+   - listPayments()
+   - createWithdrawal()
+
+☐ 1.3.3 Create Sphere types
+   File: /types/sphere.ts
+   Interfaces for:
+   - SpherePaymentLink
+   - SpherePayment
+   - SphereWithdrawal
+
+☐ 1.3.4 Write unit tests
+   File: /lib/__tests__/sphere.test.ts
+   Tests:
+   - createPaymentLink success
+   - createPaymentLink error handling
+   - getPaymentStatus
+
+☐ 1.3.5 Test Sphere integration
+   Create test payment link
+   Verify in Sphere dashboard
+   Test webhook reception
+
+ACCEPTANCE CRITERIA:
+✓ Sphere account created
+✓ SDK integrated
+✓ Service class implemented
+✓ Types defined
+✓ Unit tests pass
+✓ Test payment link works
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TASK 1.4: AUTHENTICATION SYSTEM
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Duration: 2.5 hours
+Dependencies: 1.2 (Supabase setup)
+Owner: Developer
+
+CURSOR PROMPT:
+```
+Implement authentication system using Supabase Auth.
+
+Requirements:
+1. Signup page with email/password
+2. Login page with email/password
+3. Email verification flow
+4. Session management
+5. Protected routes middleware
+6. Auth context provider
+
+Use Next.js App Router conventions.
+Use shadcn/ui components for forms.
+
+Write tests first, then implementation.
+
+Context: @app/(auth)/ @lib/supabase.ts
+```
+
+SUBTASKS:
+☐ 1.4.1 Create signup page
+   File: /app/(auth)/signup/page.tsx
+   Features:
+   - Email/password form
+   - Validation (Zod schema)
+   - Submit handler
+   - Error display
+   - Redirect to email verification
+
+☐ 1.4.2 Create login page
+   File: /app/(auth)/login/page.tsx
+   Features:
+   - Email/password form
+   - Remember me checkbox
+   - Forgot password link
+   - Redirect to dashboard on success
+
+☐ 1.4.3 Create auth middleware
+   File: /middleware.ts
+   Logic:
+   - Check session on protected routes
+   - Redirect to login if not authenticated
+   - Allow public routes (/, /login, /signup)
+
+☐ 1.4.4 Create auth context
+   File: /components/providers/AuthProvider.tsx
+   Features:
+   - User state management
+   - Login/logout functions
+   - Session refresh
+
+☐ 1.4.5 Create auth API routes
+   Files:
+   - /app/api/auth/signup/route.ts
+   - /app/api/auth/login/route.ts
+   - /app/api/auth/logout/route.ts
+   - /app/api/auth/me/route.ts
+
+☐ 1.4.6 Test auth flow
+   Manual test:
+   - Sign up new user
+   - Verify email
+   - Log in
+   - Access dashboard
+   - Log out
+
+ACCEPTANCE CRITERIA:
+✓ Signup works with email verification
+✓ Login redirects to dashboard
+✓ Protected routes require auth
+✓ Logout clears session
+✓ Auth state persists on refresh
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TASK 1.5: MERCHANT ONBOARDING API
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Duration: 1 hour
+Dependencies: 1.2, 1.3, 1.4
+Owner: Developer
+
+SUBTASKS:
+☐ 1.5.1 Create merchant creation API
+   File: /app/api/merchants/route.ts
+   POST endpoint:
+   - Validate input (business name, country, type)
+   - Create Sphere account via API
+   - Store merchant in database
+   - Return merchant ID
+
+☐ 1.5.2 Create merchant update API
+   File: /app/api/merchants/[id]/route.ts
+   PATCH endpoint:
+   - Update business details
+   - Update wallet address
+
+☐ 1.5.3 Create merchant get API
+   GET endpoint:
+   - Fetch merchant by ID
+   - Include related data (counts)
+
+☐ 1.5.4 Test merchant APIs
+   - Create test merchant
+   - Update merchant
+   - Fetch merchant
+
+ACCEPTANCE CRITERIA:
+✓ Merchant creation API works
+✓ Sphere account created automatically
+✓ Merchant data persists in database
+✓ Update and fetch work correctly
+
+DAY 1 COMPLETION CRITERIA:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Project initialized and deployed locally
+✅ Database schema created and tested
+✅ Sphere SDK integrated and tested
+✅ Authentication working (signup, login, logout)
+✅ Merchant onboarding API functional
+✅ Git commits: Minimum 5 commits with clear messages
+
+================================================================================
+DAY 2: PAYMENT INFRASTRUCTURE & DASHBOARD FOUNDATION
+Timeline: 8 hours | Priority: P0 (Critical Path)
+================================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TASK 2.1: PAYMENT CREATION API
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Duration: 2 hours
+Dependencies: Day 1 complete
+Owner: Developer
+
+CURSOR PROMPT:
+```
+Implement payment creation API using Sphere SDK.
+
+Requirements:
+1. POST /api/payments/create-link endpoint
+2. Input validation:
+   - amount (positive decimal)
+   - description (string, max 500 chars)
+   - redirectUrl (valid URL, optional)
+   - metadata (object, optional)
+3. Create payment link via Sphere API
+4. Store payment in database
+5. Return payment link URL and ID
+
+Error handling:
+- Invalid input → 400 Bad Request
+- Sphere API error → 502 Bad Gateway
+- Database error → 500 Internal Server Error
+
+Write tests first, then implementation.
+
+Context: @app/api/payments/create-link/route.ts @lib/sphere.ts
+```
+
+SUBTASKS:
+☐ 2.1.1 Create payment link API
+   File: /app/api/payments/create-link/route.ts
+
+☐ 2.1.2 Add input validation schema
+   Use Zod for validation
+
+☐ 2.1.3 Integrate Sphere payment link creation
+   Call Sphere SDK
+   Handle errors
+
+☐ 2.1.4 Store payment in database
+   Insert into payments table
+
+☐ 2.1.5 Test payment creation
+   Automated tests + manual test
+
+ACCEPTANCE CRITERIA:
+✓ API creates payment link successfully
+✓ Sphere payment link generated
+✓ Payment stored in database
+✓ Valid URL returned
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TASK 2.2: WEBHOOK HANDLER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Duration: 1.5 hours
+Dependencies: 2.1 (Payment creation)
+Owner: Developer
+
+CURSOR PROMPT:
+```
+Implement Sphere webhook handler for payment status updates.
+
+Requirements:
+1. POST /api/webhooks/sphere endpoint
+2. Verify webhook signature (HMAC SHA-256)
+3. Parse webhook payload
+4. Update payment status in database
+5. Trigger real-time update to dashboard (Supabase real-time)
+6. Send email notification to merchant (optional)
+
+Security:
+- Verify signature before processing
+- Check timestamp to prevent replay attacks
+- Rate limit webhook endpoint
+
+Write tests mocking Sphere webhook payloads.
+
+Context: @app/api/webhooks/sphere/route.ts
+```
+
+SUBTASKS:
+☐ 2.2.1 Create webhook endpoint
+   File: /app/api/webhooks/sphere/route.ts
+
+☐ 2.2.2 Implement signature verification
+   Use HMAC SHA-256
+
+☐ 2.2.3 Parse webhook payload
+   Handle different event types:
+   - payment.created
+   - payment.completed
+   - payment.failed
+
+☐ 2.2.4 Update payment in database
+   Update status, tx_signature, completed_at
+
+☐ 2.2.5 Test webhook handling
+   Use Sphere webhook testing tool
+
+ACCEPTANCE CRITERIA:
+✓ Webhook endpoint receives events
+✓ Signature verified correctly
+✓ Payment status updates in database
+✓ Invalid signatures rejected
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TASK 2.3: DASHBOARD LAYOUT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Duration: 2 hours
+Dependencies: 1.4 (Auth system)
+Owner: Developer
+
+CURSOR PROMPT:
+```
+Create merchant dashboard layout using Next.js App Router and shadcn/ui.
+
+Requirements:
+1. Dashboard layout with:
+   - Sidebar navigation (desktop)
+   - Bottom navigation (mobile)
+   - Top header with user menu
+2. Navigation items:
+   - Overview (dashboard icon)
+   - Transactions (list icon)
+   - Subscriptions (repeat icon)
+   - Settings (cog icon)
+3. User menu:
+   - Account settings
+   - API keys
+   - Logout
+4. Mobile responsive design
+5. Dark mode support (next-themes)
+
+Use shadcn/ui components: Sidebar, Avatar, DropdownMenu, Button
+
+Context: @app/(dashboard)/layout.tsx @components/dashboard/
+```
+
+SUBTASKS:
+☐ 2.3.1 Create dashboard layout
+   File: /app/(dashboard)/layout.tsx
+
+☐ 2.3.2 Create sidebar component
+   File: /components/dashboard/Sidebar.tsx
+
+☐ 2.3.3 Create top header component
+   File: /components/dashboard/Header.tsx
+
+☐ 2.3.4 Setup dark mode
+   Install next-themes
+   Create theme provider
+
+☐ 2.3.5 Test responsive design
+   Desktop, tablet, mobile views
+
+ACCEPTANCE CRITERIA:
+✓ Sidebar displays on desktop
+✓ Bottom nav displays on mobile
+✓ Navigation works correctly
+✓ User menu functional
+✓ Responsive design works
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TASK 2.4: REVENUE DASHBOARD (OVERVIEW PAGE)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Duration: 2.5 hours
+Dependencies: 2.1, 2.2, 2.3
+Owner: Developer
+
+CURSOR PROMPT:
+```
+Create merchant revenue dashboard with real-time updates.
+
+Requirements:
+1. Revenue stat cards:
+   - Today's revenue (USDC)
+   - This month's revenue
+   - All-time revenue
+   - Current balance
+2. Revenue chart (last 30 days, line chart)
+3. Recent transactions table (last 10)
+4. Real-time updates via Supabase subscriptions
+5. Loading states (skeletons)
+6. Empty states (no transactions yet)
+
+Use:
+- shadcn/ui Card, Table components
+- Recharts for chart
+- TanStack Query for data fetching
+
+Context: @app/(dashboard)/page.tsx @components/dashboard/
+```
+
+SUBTASKS:
+☐ 2.4.1 Create API endpoint for dashboard stats
+   File: /app/api/dashboard/stats/route.ts
+   Returns:
+   - Today revenue
+   - Month revenue
+   - All-time revenue
+   - Transaction count
+
+☐ 2.4.2 Create revenue stat cards component
+   File: /components/dashboard/RevenueCards.tsx
+
+☐ 2.4.3 Create revenue chart component
+   File: /components/dashboard/RevenueChart.tsx
+   Use Recharts LineChart
+
+☐ 2.4.4 Create recent transactions component
+   File: /components/dashboard/RecentTransactions.tsx
+
+☐ 2.4.5 Implement real-time updates
+   Supabase subscription to payments table
+
+☐ 2.4.6 Add loading and empty states
+   Use shadcn/ui Skeleton
+
+ACCEPTANCE CRITERIA:
+✓ Dashboard displays correct revenue stats
+✓ Chart shows 30-day trend
+✓ Recent transactions list works
+✓ Real-time updates when new payment arrives
+✓ Loading states display during fetch
+✓ Empty state shows when no transactions
+
+DAY 2 COMPLETION CRITERIA:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Payment creation API working
+✅ Webhook handler processing Sphere events
+✅ Dashboard layout complete and responsive
+✅ Overview page showing revenue stats
+✅ Real-time updates functional
+✅ Can create payment link and see it in dashboard
+
+================================================================================
+DAY 3: TRANSACTIONS, SUBSCRIPTIONS & CHECKOUT
+Timeline: 8 hours | Priority: P0 (Critical Path)
+================================================================================
+
+[Continuing in next section due to length...]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TASK 3.1: TRANSACTIONS PAGE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Duration: 2 hours
+Dependencies: Day 2 complete
+Owner: Developer
+
+SUBTASKS:
+☐ 3.1.1 Create transactions API with filters
+   File: /app/api/payments/route.ts
+   Query params:
+   - status (pending, completed, failed)
+   - startDate, endDate
+   - search (customer wallet)
+   - page, limit
+
+☐ 3.1.2 Create transactions page
+   File: /app/(dashboard)/transactions/page.tsx
+
+☐ 3.1.3 Add filter controls
+   - Date range picker
+   - Status dropdown
+   - Search input
+
+☐ 3.1.4 Create transactions table
+   Columns:
+   - Payment ID
+   - Customer wallet
+   - Amount
+   - Status
+   - Date
+   - Actions (view details, explorer link)
+
+☐ 3.1.5 Add pagination
+
+☐ 3.1.6 Add CSV export
+   Button to export filtered transactions
+
+ACCEPTANCE CRITERIA:
+✓ Transactions list displays correctly
+✓ Filters work (status, date, search)
+✓ Pagination works
+✓ CSV export generates correct file
+✓ Explorer links open correct transactions
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TASK 3.2: SUBSCRIPTION PLANS MANAGEMENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Duration: 2 hours
+Dependencies: None (can parallel with 3.1)
+Owner: Developer
+
+SUBTASKS:
+☐ 3.2.1 Integrate Loop Crypto SDK
+   npm install loop-crypto-sdk (or equivalent)
+   Setup API keys
+
+☐ 3.2.2 Create subscription plans API
+   File: /app/api/subscriptions/plans/route.ts
+   - POST: Create plan
+   - GET: List plans
+   - PATCH: Update plan
+   - DELETE: Deactivate plan
+
+☐ 3.2.3 Create subscription plans page
+   File: /app/(dashboard)/subscriptions/page.tsx
+
+☐ 3.2.4 Create plan creation modal
+   Form fields:
+   - Plan name
+   - Amount (USDC)
+   - Billing period (monthly/annual)
+   - Trial days (optional)
+
+☐ 3.2.5 Display plan cards
+   Show active plans with:
+   - Name, price, period
+   - Subscription count
+   - Edit/deactivate actions
+
+☐ 3.2.6 Generate subscription link
+   Copy-to-clipboard button
+
+ACCEPTANCE CRITERIA:
+✓ Loop SDK integrated
+✓ Can create subscription plan
+✓ Plans display correctly
+✓ Subscription link generated
+✓ Link is shareable
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TASK 3.3: CUSTOMER CHECKOUT UI
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Duration: 2 hours
+Dependencies: 3.2 (Subscriptions)
+Owner: Developer
+
+SUBTASKS:
+☐ 3.3.1 Create checkout page (public route)
+   File: /app/checkout/[planId]/page.tsx
+
+☐ 3.3.2 Display plan details
+   Fetch plan from database
+   Show price, period, trial info
+
+☐ 3.3.3 Integrate wallet connection
+   Use @solana/wallet-adapter-react
+   Support: Phantom, Solflare, Backpack
+
+☐ 3.3.4 Implement subscription flow
+   - Connect wallet
+   - Approve USDC spend (Loop)
+   - Create subscription
+   - Show success/error
+
+☐ 3.3.5 Add payment confirmation UI
+   Success screen with:
+   - Subscription details
+   - Next billing date
+   - Receipt
+
+☐ 3.3.6 Handle errors
+   - Wallet not connected
+   - Insufficient USDC
+   - Transaction failed
+
+ACCEPTANCE CRITERIA:
+✓ Checkout page loads correctly
+✓ Wallet connects successfully
+✓ Can complete subscription
+✓ Success state displays
+✓ Errors handled gracefully
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TASK 3.4: PAYMENT LINK CREATION UI
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Duration: 1.5 hours
+Dependencies: 2.1 (Payment API)
+Owner: Developer
+
+SUBTASKS:
+☐ 3.4.1 Create payment link modal
+   File: /components/dashboard/CreatePaymentModal.tsx
+
+☐ 3.4.2 Add form fields
+   - Amount (USDC)
+   - Description
+   - Redirect URL (optional)
+
+☐ 3.4.3 Submit and generate link
+   Call /api/payments/create-link
+
+☐ 3.4.4 Display generated link
+   - Copy to clipboard button
+   - QR code
+   - Share buttons (email, Twitter)
+
+☐ 3.4.5 Add to dashboard
+   "Create Payment Link" button in header
+
+ACCEPTANCE CRITERIA:
+✓ Modal opens on button click
+✓ Form validates correctly
+✓ Payment link generates
+✓ Copy to clipboard works
+✓ QR code displays
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TASK 3.5: SUBSCRIPTIONS LIST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Duration: 0.5 hours
+Dependencies: 3.2, 3.3
+Owner: Developer
+
+SUBTASKS:
+☐ 3.5.1 Create subscriptions API
+   File: /app/api/subscriptions/route.ts
+   GET: List active subscriptions
+
+☐ 3.5.2 Display subscriptions in dashboard
+   File: /app/(dashboard)/subscriptions/active/page.tsx
+   Table with:
+   - Customer wallet
+   - Plan name
+   - Status
+   - Next billing date
+   - Actions (cancel, pause)
+
+ACCEPTANCE CRITERIA:
+✓ Active subscriptions display
+✓ Can cancel subscription
+
+DAY 3 COMPLETION CRITERIA:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Transactions page complete with filters
+✅ Subscription plans can be created
+✅ Customer checkout flow working
+✅ Payment link creation UI functional
+✅ Subscriptions list displays
+✅ End-to-end flow tested: Create plan → Customer subscribes → Shows in dashboard
+
+================================================================================
+DAY 4: OFFRAMP, SETTINGS & DEPLOYMENT
+Timeline: 6 hours (lighter day for polish)
+Priority: P1 (Important but not blocking)
+================================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TASK 4.1: OFFRAMP / WITHDRAWALS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Duration: 2 hours
+Dependencies: Sphere account setup
+Owner: Developer
+
+SUBTASKS:
+☐ 4.1.1 Create withdrawal API
+   File: /app/api/withdrawals/route.ts
+   - POST: Create withdrawal request
+   - GET: List withdrawals
+
+☐ 4.1.2 Integrate Sphere offramp
+   Call Sphere withdrawal API
+
+☐ 4.1.3 Create withdraw page
+   File: /app/(dashboard)/withdraw/page.tsx
+   Form:
+   - Amount (USDC)
+   - Bank account (dropdown)
+   - Confirm button
+
+☐ 4.1.4 Display withdrawal history
+   Table with:
+   - Date
+   - Amount
+   - Status
+   - Bank account
+
+ACCEPTANCE CRITERIA:
+✓ Can initiate withdrawal
+✓ Sphere processes request
+✓ History displays correctly
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TASK 4.2: SETTINGS PAGE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Duration: 1.5 hours
+Dependencies: None
+Owner: Developer
+
+SUBTASKS:
+☐ 4.2.1 Create settings page layout
+   File: /app/(dashboard)/settings/page.tsx
+   Tabs:
+   - Business
+   - API Keys
+   - Webhooks
+
+☐ 4.2.2 Business settings tab
+   - Update business name
+   - Update country
+   - Update wallet address
+
+☐ 4.2.3 API keys tab
+   - Generate new key
+   - List keys
+   - Revoke key
+
+☐ 4.2.4 Webhooks tab
+   - Add webhook URL
+   - Select events
+   - Test webhook
+   - View webhook logs
+
+ACCEPTANCE CRITERIA:
+✓ Can update business details
+✓ Can generate API key
+✓ Can configure webhook
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TASK 4.3: POLISH & BUG FIXES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Duration: 1 hour
+Dependencies: All features complete
+Owner: Developer
+
+SUBTASKS:
+☐ 4.3.1 End-to-end testing
+   Test all user flows manually
+
+☐ 4.3.2 Fix identified bugs
+   Create list, prioritize, fix
+
+☐ 4.3.3 UI polish
+   - Consistent spacing
+   - Loading states everywhere
+   - Error messages user-friendly
+   - Success toasts
+
+☐ 4.3.4 Performance optimization
+   - Image optimization
+   - Code splitting
+   - Lazy loading
+
+ACCEPTANCE CRITERIA:
+✓ All critical bugs fixed
+✓ UI polished and consistent
+✓ Performance targets met
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TASK 4.4: DEPLOYMENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Duration: 1.5 hours
+Dependencies: 4.3 (Polish complete)
+Owner: Developer
+
+SUBTASKS:
+☐ 4.4.1 Setup Vercel project
+   - Connect GitHub repo
+   - Configure environment variables
+   - Setup custom domain (optional)
+
+☐ 4.4.2 Deploy to production
+   - Push to main branch
+   - Verify deployment
+   - Test on production URL
+
+☐ 4.4.3 Configure monitoring
+   - Setup Sentry for errors
+   - Enable Vercel Analytics
+   - Setup PostHog (optional)
+
+☐ 4.4.4 Production testing
+   - Create test merchant account
+   - Create test payment
+   - Verify webhook delivery
+   - Test subscription flow
+
+☐ 4.4.5 Setup status page
+   - Use Better Stack or Uptime Robot
+   - Monitor critical endpoints
+
+ACCEPTANCE CRITERIA:
+✓ Deployed to Vercel production
+✓ Custom domain configured (if applicable)
+✓ Environment variables set
+✓ Monitoring active
+✓ Production tests passing
+
+DAY 4 COMPLETION CRITERIA:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Withdrawals working
+✅ Settings page complete
+✅ All bugs fixed
+✅ Deployed to production
+✅ Monitoring active
+✅ 🎉 MVP LIVE!
+
+================================================================================
+POST-LAUNCH: DAYS 5-7 (OPTIONAL ENHANCEMENTS)
+================================================================================
+
+These are enhancements to work on AFTER MVP is live and validated:
+
+TASK 5.1: LANDING PAGE
+☐ Create marketing landing page
+☐ Add features section
+☐ Add pricing section
+☐ Add CTA buttons
+
+TASK 5.2: DOCUMENTATION
+☐ Write API documentation (Swagger)
+☐ Create merchant onboarding guide
+☐ Create developer integration guide
+☐ Add code examples
+
+TASK 5.3: EMAIL NOTIFICATIONS
+☐ Setup email service (Resend or SendGrid)
+☐ Payment received email
+☐ Subscription billing reminder
+☐ Withdrawal confirmation
+
+TASK 5.4: ADVANCED ANALYTICS
+☐ Add cohort analysis
+☐ Add churn tracking
+☐ Add revenue forecasting
+☐ Add export to CSV for analytics
+
+TASK 5.5: X402 MIGRATION (FUTURE)
+☐ Research x402 integration
+☐ Build parallel x402 middleware
+☐ A/B test Sphere vs x402
+☐ Gradual migration strategy
+
+================================================================================
+TASK TRACKING TEMPLATE
+================================================================================
+
+Use this template to track daily progress:
+
+[DATE]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+COMPLETED:
+✓ Task 1.1: Project initialization (1hr actual vs 1hr estimated)
+✓ Task 1.2: Supabase setup (2hr actual vs 1.5hr estimated)
+⚠ Task 1.3: Sphere integration (3hr actual vs 2hr estimated) - OVERRUN
+
+BLOCKERS:
+⛔ Sphere API key approval pending (contacted support)
+
+IN PROGRESS:
+🔄 Task 1.4: Authentication system (50% complete)
+
+NEXT:
+📋 Task 1.5: Merchant API
+
+NOTES:
+- Cursor AI helped with Sphere integration, saved ~1 hour
+- Need to refactor auth middleware tomorrow
+- Database schema working perfectly
+
+HOURS: 6/8 completed
+STATUS: 🟡 Slightly behind but recoverable
+
+================================================================================
+END OF TASK BREAKDOWN
+================================================================================
+
+Total Tasks: 20 main tasks, ~80 subtasks
+Estimated Total Time: 32 hours (4 days x 8 hours)
+Team: 1-2 developers with AI assistance
+
+READY TO BUILD! 🚀

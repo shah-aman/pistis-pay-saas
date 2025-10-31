@@ -1,49 +1,46 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { signToken, verifyToken } from '@/lib/auth/session';
+import { createSupabaseAdmin } from '@/lib/supabase/client';
 
-const protectedRoutes = '/dashboard';
+const protectedRoutes = ['/dashboard'];
+const authRoutes = ['/sign-in', '/sign-up'];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const sessionCookie = request.cookies.get('session');
-  const isProtectedRoute = pathname.startsWith(protectedRoutes);
+  const token = request.cookies.get('supabase-auth-token')?.value;
+  
+  const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
+  const isAuthRoute = authRoutes.some(route => pathname.startsWith(route));
 
-  if (isProtectedRoute && !sessionCookie) {
-    return NextResponse.redirect(new URL('/sign-in', request.url));
-  }
-
-  let res = NextResponse.next();
-
-  if (sessionCookie && request.method === 'GET') {
+  // Check if user is authenticated
+  let isAuthenticated = false;
+  if (token) {
     try {
-      const parsed = await verifyToken(sessionCookie.value);
-      const expiresInOneDay = new Date(Date.now() + 24 * 60 * 60 * 1000);
-
-      res.cookies.set({
-        name: 'session',
-        value: await signToken({
-          ...parsed,
-          expires: expiresInOneDay.toISOString()
-        }),
-        httpOnly: true,
-        secure: true,
-        sameSite: 'lax',
-        expires: expiresInOneDay
-      });
+      const supabase = createSupabaseAdmin();
+      const { data, error } = await supabase.auth.getUser(token);
+      isAuthenticated = !error && !!data.user;
     } catch (error) {
-      console.error('Error updating session:', error);
-      res.cookies.delete('session');
-      if (isProtectedRoute) {
-        return NextResponse.redirect(new URL('/sign-in', request.url));
-      }
+      console.error('Auth middleware error:', error);
+      isAuthenticated = false;
     }
   }
 
-  return res;
+  // Redirect to sign-in if trying to access protected route without auth
+  if (isProtectedRoute && !isAuthenticated) {
+    return NextResponse.redirect(new URL('/sign-in', request.url));
+  }
+
+  // Redirect to dashboard if trying to access auth routes while authenticated
+  if (isAuthRoute && isAuthenticated) {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
+  }
+
+  return NextResponse.next();
 }
 
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
+  matcher: [
+    '/((?!api|_next/static|_next/image|favicon.ico).*)',
+  ],
   runtime: 'nodejs'
 };

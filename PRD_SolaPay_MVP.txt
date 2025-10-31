@@ -1,0 +1,1154 @@
+
+================================================================================
+PRODUCT REQUIREMENTS DOCUMENT (PRD)
+Polar Alternative on Solana - Sphere-Powered MVP
+================================================================================
+
+VERSION: 1.0
+DATE: October 29, 2025
+AUTHOR: Development Team
+STATUS: Ready for Implementation
+
+================================================================================
+1. EXECUTIVE SUMMARY
+================================================================================
+
+PRODUCT NAME: SolaPay (working name)
+TAGLINE: "Accept stablecoin payments in 5 minutes"
+
+VISION:
+A Polar alternative built on Solana that enables developers to accept USDC
+payments with instant settlement, near-zero fees, and global reach.
+
+TARGET LAUNCH: 4 days from start
+MVP TIMELINE: Days 1-4 (Core), Days 5-7 (Enhancement)
+
+CORE VALUE PROPOSITION:
+• Accept USDC payments on Solana in minutes (vs days with traditional setup)
+• Instant settlement (<30 min vs 2-3 days with Stripe)
+• Lower fees (1.5-2% vs 4%+ with Polar)
+• Global reach (120+ countries via Sphere)
+• Built-in compliance (KYC/AML automated)
+
+
+================================================================================
+2. PROBLEM STATEMENT
+================================================================================
+
+TARGET USER: SaaS developers and digital product creators
+
+CURRENT PAIN POINTS:
+1. Traditional payment processors (Stripe) take 2-3 days to settle
+2. High transaction fees (2.9% + $0.30 minimum)
+3. Geographic restrictions and compliance complexity
+4. Chargeback fraud risk
+5. Complex integration for recurring billing
+6. No support for crypto-native payments
+
+JOBS TO BE DONE:
+• Accept payments for digital products/services
+• Track revenue in real-time
+• Manage recurring subscriptions
+• Convert crypto to fiat easily
+• Maintain tax compliance globally
+
+
+================================================================================
+3. PRODUCT GOALS & SUCCESS METRICS
+================================================================================
+
+PRIMARY GOALS:
+1. Launch working MVP in 4 days
+2. Enable merchants to accept USDC payments
+3. Provide revenue tracking dashboard
+4. Support subscription billing
+5. Enable offramp to bank accounts
+
+SUCCESS METRICS (30 days post-launch):
+• 10+ merchants onboarded
+• $1,000+ in payment volume processed
+• < 5 critical bugs reported
+• 95%+ uptime
+• < 30 min average settlement time
+• Net Promoter Score > 40
+
+FAILURE CRITERIA (triggers pivot/shutdown):
+• 0 merchants after 14 days
+• > 10 critical bugs in first week
+• < 90% uptime in first month
+• Unable to process payments reliably
+
+
+================================================================================
+4. USER PERSONAS
+================================================================================
+
+PERSONA 1: "API Developer Ali"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Demographics: 28, Backend developer, San Francisco
+Background: Built AI API service, needs payment gateway
+Tech savvy: Very high
+Crypto experience: Medium (has used MetaMask)
+
+Goals:
+• Monetize AI API with pay-per-use pricing
+• Accept crypto payments natively
+• Avoid Stripe's high fees
+• Fast settlement for cash flow
+
+Pain Points:
+• Stripe takes 2-3 days to settle
+• High fees eat into margins
+• Complex webhook setup
+• Chargebacks are scary
+
+Quote: "I just want to add a payment wall to my API without spending a week 
+on integration."
+
+PERSONA 2: "SaaS Founder Sarah"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Demographics: 35, Non-technical founder, Remote (India)
+Background: Building productivity SaaS, monthly subscriptions
+Tech savvy: Medium
+Crypto experience: Low (heard of it, never used)
+
+Goals:
+• Simple recurring billing for $20/month subscriptions
+• Track MRR and churn easily
+• Global customer reach
+• Compliance handled automatically
+
+Pain Points:
+• Polar charges 4% + $0.40 per transaction
+• Limited to certain countries
+• Complex tax compliance
+• No real-time revenue visibility
+
+Quote: "I need something that just works. I don't want to think about 
+payments, I want to build my product."
+
+PERSONA 3: "Creator Carlos"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Demographics: 24, Content creator/educator, Brazil
+Background: Sells online courses and digital downloads
+Tech savvy: Low-Medium
+Crypto experience: Medium (crypto enthusiast)
+
+Goals:
+• Accept payments globally without restrictions
+• Low fees (creator margin is tight)
+• Easy setup (not a developer)
+• Cash out to local bank account
+
+Pain Points:
+• Payment processors don't support his country well
+• High currency conversion fees
+• Complex setup processes
+• Delayed payouts
+
+Quote: "I want to accept payments from anyone, anywhere, and get my money 
+fast without losing 10% to fees."
+
+
+================================================================================
+5. FEATURE SPECIFICATIONS
+================================================================================
+
+5.1 MERCHANT ONBOARDING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PRIORITY: P0 (Must Have)
+USER STORY: As a merchant, I want to create an account so that I can start 
+accepting payments.
+
+REQUIREMENTS:
+1. Email/password signup
+2. Solana wallet connection (Phantom, Solflare, Backpack)
+3. Business information form:
+   - Business name
+   - Country/jurisdiction
+   - Business type (individual/company)
+   - Website URL (optional)
+4. Automatic account creation in Sphere
+5. Email verification
+6. Dashboard redirect after successful signup
+
+ACCEPTANCE CRITERIA:
+☑ User can sign up with email/password
+☑ User can connect Solana wallet
+☑ Sphere account automatically created
+☑ User receives verification email
+☑ User redirected to dashboard
+☑ Session persists across browser refresh
+
+OUT OF SCOPE (MVP):
+✗ Social login (Google, Twitter)
+✗ Automated KYB verification
+✗ Team/multi-user accounts
+✗ 2FA authentication
+
+TECHNICAL NOTES:
+- Use Supabase Auth for email/password
+- Store Sphere API keys encrypted in database
+- Wallet address becomes primary merchant identifier
+
+
+5.2 PAYMENT PROCESSING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PRIORITY: P0 (Must Have)
+USER STORY: As a merchant, I want to accept USDC payments so that I can 
+monetize my product.
+
+REQUIREMENTS:
+1. Create payment links via Sphere API
+2. Payment link configuration:
+   - Amount (USDC)
+   - Description
+   - Redirect URL (success/failure)
+   - Metadata (custom fields)
+3. Shareable payment URL
+4. Payment page hosted by Sphere:
+   - Shows amount and description
+   - Wallet connection
+   - USDC transfer
+   - Confirmation screen
+5. Webhook notifications on payment status:
+   - Payment initiated
+   - Payment confirmed
+   - Payment failed
+6. Real-time balance updates in dashboard
+
+ACCEPTANCE CRITERIA:
+☑ Merchant can create payment link in < 30 seconds
+☑ Payment link is shareable (copy to clipboard)
+☑ Customer can pay with USDC using any Solana wallet
+☑ Payment confirms in < 30 minutes
+☑ Merchant receives webhook notification
+☑ Dashboard updates in real-time
+☑ Transaction appears in history
+
+EDGE CASES:
+- Insufficient USDC balance → Clear error message
+- Wrong network → Prompt to switch to Solana
+- Transaction failure → Retry mechanism
+- Webhook delivery failure → Automatic retry (3 attempts)
+
+OUT OF SCOPE (MVP):
+✗ Custom payment UI (use Sphere hosted page)
+✗ Multiple currencies (USDC only)
+✗ Discount codes/coupons
+✗ Invoice generation
+
+
+5.3 MERCHANT DASHBOARD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PRIORITY: P0 (Must Have)
+USER STORY: As a merchant, I want to see my revenue and transactions so that 
+I can track my business performance.
+
+REQUIREMENTS:
+
+5.3.1 Overview Page
+- Revenue stat cards:
+  • Today's revenue (USDC)
+  • This month's revenue
+  • All-time revenue
+  • Current USDC balance
+- Revenue trend chart (last 30 days)
+- Recent transactions (last 10)
+- Quick actions:
+  • Create payment link
+  • View all transactions
+  • Withdraw funds
+
+5.3.2 Transactions Page
+- Filterable transaction list:
+  • Date range picker
+  • Status filter (pending/completed/failed)
+  • Search by customer wallet
+- Transaction details:
+  • Payment link ID
+  • Amount (USDC)
+  • Customer wallet address
+  • Status
+  • Timestamp
+  • Solana Explorer link
+- Export to CSV
+- Pagination (50 per page)
+
+5.3.3 Settings Page
+- API key management:
+  • Generate API key
+  • Revoke API key
+  • View key usage stats
+- Webhook configuration:
+  • Webhook URL
+  • Secret key
+  • Event subscriptions
+- Business details:
+  • Update business name
+  • Update country
+  • Update wallet address
+- Notification preferences:
+  • Email on new payment
+  • Email on failed payment
+  • Daily summary email
+
+ACCEPTANCE CRITERIA:
+☑ Dashboard loads in < 2 seconds
+☑ Revenue cards update in real-time
+☑ Charts display accurate data
+☑ Transaction list supports filtering/search
+☑ CSV export works correctly
+☑ API keys can be generated/revoked
+☑ Webhook configuration saves successfully
+☑ Mobile responsive design
+
+OUT OF SCOPE (MVP):
+✗ Advanced analytics (cohorts, retention)
+✗ Custom date ranges beyond 30 days
+✗ Multiple currencies display
+✗ Tax reporting (basic only)
+
+
+5.4 SUBSCRIPTION MANAGEMENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PRIORITY: P1 (Should Have)
+USER STORY: As a merchant, I want to offer recurring subscriptions so that I 
+can have predictable revenue.
+
+REQUIREMENTS:
+1. Create subscription plans via Loop Crypto:
+   - Plan name
+   - Amount (USDC)
+   - Billing period (monthly/annual)
+   - Trial period (optional, days)
+2. Subscription checkout link
+3. Customer subscription flow:
+   - Select plan
+   - Connect wallet
+   - Approve USDC spend
+   - Subscription activated
+4. Automatic recurring billing via Loop
+5. Subscription management dashboard:
+   - Active subscriptions count
+   - MRR (Monthly Recurring Revenue)
+   - Churn rate
+   - Subscription list
+6. Customer portal:
+   - View current plan
+   - Update payment method
+   - Cancel subscription
+
+ACCEPTANCE CRITERIA:
+☑ Merchant can create subscription plans
+☑ Customer can subscribe with 3 clicks
+☑ First payment processes immediately
+☑ Recurring billing happens automatically
+☑ Customer receives email before billing
+☑ Merchant sees MRR in dashboard
+☑ Customers can cancel anytime
+
+OUT OF SCOPE (MVP):
+✗ Proration for plan changes
+✗ Multiple subscription tiers per customer
+✗ Dunning management (failed payment recovery)
+✗ Usage-based billing
+
+
+5.5 OFFRAMP TO BANK ACCOUNT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PRIORITY: P1 (Should Have)
+USER STORY: As a merchant, I want to withdraw USDC to my bank account so 
+that I can use the funds in fiat.
+
+REQUIREMENTS:
+1. Link bank account (via Sphere):
+   - Account holder name
+   - Bank name
+   - Account number
+   - Routing number (US) or SWIFT (international)
+2. Verify bank account (micro-deposits or instant verification)
+3. Withdraw USDC to fiat:
+   - Enter amount
+   - Select bank account
+   - Confirm withdrawal
+   - Receive confirmation
+4. Withdrawal processing:
+   - Sphere converts USDC → Fiat
+   - Transfers to bank account
+   - Settlement in 1-2 business days
+5. Withdrawal history:
+   - Date initiated
+   - Amount (USDC and fiat)
+   - Status (pending/completed)
+   - Bank account (last 4 digits)
+   - Estimated arrival date
+
+ACCEPTANCE CRITERIA:
+☑ Merchant can link bank account
+☑ Bank verification completes in < 5 minutes
+☑ Withdrawal request processes successfully
+☑ Merchant receives email confirmation
+☑ Funds arrive in bank within 2 business days
+☑ Withdrawal history displays correctly
+
+OUT OF SCOPE (MVP):
+✗ Multiple bank accounts
+✗ Instant withdrawals
+✗ Crypto-to-crypto conversion
+✗ Automatic withdrawal schedules
+
+
+================================================================================
+6. USER FLOWS
+================================================================================
+
+6.1 MERCHANT ONBOARDING FLOW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+START: Landing page
+↓
+1. Click "Get Started"
+↓
+2. Sign up form:
+   - Email
+   - Password
+   - Confirm password
+   [Click "Create Account"]
+↓
+3. Email verification:
+   - "Check your email for verification link"
+   - Click link in email
+↓
+4. Complete profile:
+   - Business name
+   - Country
+   - Business type
+   [Click "Continue"]
+↓
+5. Connect Solana wallet:
+   - Select wallet provider (Phantom/Solflare/Backpack)
+   - Connect wallet
+   - Sign message to verify ownership
+   [Click "Connect"]
+↓
+6. Sphere account creation:
+   - [Automatic, backend]
+   - Creating your payment account...
+   - Success! ✓
+↓
+7. Dashboard redirect:
+   - Welcome modal
+   - "Create your first payment link"
+↓
+END: Merchant dashboard
+
+
+6.2 PAYMENT CREATION & ACCEPTANCE FLOW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+MERCHANT SIDE:
+START: Dashboard
+↓
+1. Click "Create Payment Link"
+↓
+2. Payment link form:
+   - Amount (USDC)
+   - Description
+   - Redirect URL (optional)
+   [Click "Generate Link"]
+↓
+3. Payment link created:
+   - Display link URL
+   - QR code
+   - Copy button
+   - Share via email/social
+↓
+END: Share link with customer
+
+CUSTOMER SIDE:
+START: Receive payment link
+↓
+1. Click payment link
+↓
+2. Sphere payment page:
+   - Show amount and description
+   - Merchant name
+   [Click "Pay with Solana"]
+↓
+3. Connect wallet:
+   - Select wallet
+   - Approve connection
+↓
+4. Review payment:
+   - From: Your wallet
+   - To: Merchant wallet
+   - Amount: X USDC
+   - Fee: ~$0.00025
+   [Click "Confirm"]
+↓
+5. Sign transaction:
+   - Wallet popup
+   - Sign transaction
+↓
+6. Processing:
+   - Confirming on Solana...
+   - ⏳ (~ 30 seconds)
+↓
+7. Success:
+   - Payment confirmed! ✓
+   - Transaction ID
+   - View on Solana Explorer
+   - Redirect to merchant site (if configured)
+↓
+END: Payment complete
+
+MERCHANT NOTIFICATION:
+- Real-time dashboard update (WebSocket)
+- Email notification
+- Webhook to merchant's server (if configured)
+
+
+6.3 SUBSCRIPTION FLOW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+MERCHANT SETUP:
+START: Dashboard → Subscriptions
+↓
+1. Click "Create Plan"
+↓
+2. Plan configuration:
+   - Plan name (e.g., "Pro")
+   - Amount (USDC)
+   - Billing period (monthly/annual)
+   - Trial period (optional)
+   [Click "Create"]
+↓
+3. Plan created:
+   - Subscription link generated
+   - Share link with customers
+↓
+END: Plan active
+
+CUSTOMER SUBSCRIPTION:
+START: Click subscription link
+↓
+1. Plan details page:
+   - Plan name and price
+   - Billing frequency
+   - Features (if configured)
+   [Click "Subscribe"]
+↓
+2. Connect wallet:
+   - Select wallet
+   - Approve connection
+↓
+3. Approve recurring payment:
+   - Loop Crypto approval screen
+   - Approve USDC spend up to X per month
+   - [Sign approval]
+↓
+4. First payment:
+   - Charge first payment immediately
+   - Sign transaction
+↓
+5. Subscription active:
+   - Success! ✓
+   - Subscription details
+   - Next billing date
+   - Manage subscription link
+↓
+END: Subscribed
+
+RECURRING BILLING (Automatic):
+- 3 days before billing: Email reminder
+- Billing date: Loop charges USDC automatically
+- After charge: Email receipt
+- Update dashboard MRR
+
+
+6.4 OFFRAMP FLOW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+START: Dashboard → Withdraw
+↓
+1. Check balance:
+   - Current USDC balance: X
+   - Available to withdraw: Y (minus pending)
+   [Click "Withdraw"]
+↓
+2. Bank account selection:
+   - If no bank linked: "Link Bank Account" → Bank linking flow
+   - If bank linked: Select from dropdown
+↓
+3. Enter withdrawal amount:
+   - Amount in USDC
+   - Conversion rate displayed
+   - Estimated fiat amount
+   - Fee (1%)
+   - Net amount to receive
+   [Click "Continue"]
+↓
+4. Review withdrawal:
+   - USDC amount
+   - Fiat amount
+   - Bank account (last 4)
+   - Estimated arrival
+   [Click "Confirm Withdrawal"]
+↓
+5. Processing:
+   - Creating withdrawal request...
+   - Sphere converting USDC...
+   - Initiating bank transfer...
+↓
+6. Confirmation:
+   - Withdrawal initiated! ✓
+   - Confirmation email sent
+   - Track in "Withdrawal History"
+   - Estimated arrival: Nov 1, 2025
+↓
+END: Withdrawal complete (1-2 days)
+
+
+================================================================================
+7. TECHNICAL ARCHITECTURE
+================================================================================
+
+7.1 SYSTEM ARCHITECTURE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+┌─────────────────────────────────────────────────────────────┐
+│                     FRONTEND (Next.js 14)                    │
+│                                                              │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
+│  │  Dashboard   │  │   Payment    │  │  Settings    │     │
+│  │    Pages     │  │  Creation    │  │    Pages     │     │
+│  └──────────────┘  └──────────────┘  └──────────────┘     │
+│                                                              │
+│  Deployed on: Vercel (free tier)                            │
+└─────────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────────┐
+│              BACKEND (Next.js API Routes)                    │
+│                                                              │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
+│  │   Merchant   │  │   Payment    │  │  Webhook     │     │
+│  │     API      │  │     API      │  │   Handler    │     │
+│  └──────────────┘  └──────────────┘  └──────────────┘     │
+│                                                              │
+│  Deployed on: Vercel (serverless functions)                 │
+└─────────────────────────────────────────────────────────────┘
+         ↓                    ↓                    ↓
+┌────────────────┐  ┌────────────────┐  ┌────────────────┐
+│   SUPABASE     │  │  SPHERE LABS   │  │  LOOP CRYPTO   │
+│  (Database)    │  │   (Payments)   │  │ (Subscriptions)│
+│                │  │                │  │                │
+│ • PostgreSQL   │  │ • USDC on Sol  │  │ • Recurring    │
+│ • Auth         │  │ • Payment      │  │   billing      │
+│ • Real-time    │  │   links        │  │ • Auto-pay     │
+│                │  │ • Offramp      │  │                │
+└────────────────┘  └────────────────┘  └────────────────┘
+
+
+7.2 DATA MODELS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+```sql
+-- MERCHANTS TABLE
+CREATE TABLE merchants (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  email VARCHAR(255) UNIQUE NOT NULL,
+  business_name VARCHAR(255) NOT NULL,
+  country VARCHAR(2) NOT NULL,
+  business_type VARCHAR(50) NOT NULL,
+  wallet_address VARCHAR(44) NOT NULL,
+  sphere_account_id VARCHAR(255) NOT NULL,
+  sphere_api_key_encrypted TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- PAYMENTS TABLE
+CREATE TABLE payments (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  merchant_id UUID REFERENCES merchants(id),
+  sphere_payment_id VARCHAR(255) UNIQUE NOT NULL,
+  customer_wallet VARCHAR(44),
+  amount_usdc DECIMAL(18, 6) NOT NULL,
+  status VARCHAR(20) NOT NULL, -- pending, completed, failed
+  description TEXT,
+  redirect_url TEXT,
+  metadata JSONB,
+  tx_signature VARCHAR(88),
+  created_at TIMESTAMP DEFAULT NOW(),
+  completed_at TIMESTAMP
+);
+
+-- SUBSCRIPTION_PLANS TABLE
+CREATE TABLE subscription_plans (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  merchant_id UUID REFERENCES merchants(id),
+  plan_name VARCHAR(100) NOT NULL,
+  amount_usdc DECIMAL(18, 6) NOT NULL,
+  billing_period VARCHAR(20) NOT NULL, -- monthly, annual
+  trial_days INTEGER DEFAULT 0,
+  loop_plan_id VARCHAR(255) NOT NULL,
+  active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- SUBSCRIPTIONS TABLE
+CREATE TABLE subscriptions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  merchant_id UUID REFERENCES merchants(id),
+  plan_id UUID REFERENCES subscription_plans(id),
+  customer_wallet VARCHAR(44) NOT NULL,
+  loop_subscription_id VARCHAR(255) NOT NULL,
+  status VARCHAR(20) NOT NULL, -- active, paused, cancelled
+  current_period_start TIMESTAMP NOT NULL,
+  current_period_end TIMESTAMP NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW(),
+  cancelled_at TIMESTAMP
+);
+
+-- WITHDRAWALS TABLE
+CREATE TABLE withdrawals (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  merchant_id UUID REFERENCES merchants(id),
+  amount_usdc DECIMAL(18, 6) NOT NULL,
+  amount_fiat DECIMAL(18, 2) NOT NULL,
+  currency VARCHAR(3) NOT NULL,
+  bank_account_last4 VARCHAR(4) NOT NULL,
+  sphere_withdrawal_id VARCHAR(255) NOT NULL,
+  status VARCHAR(20) NOT NULL, -- pending, completed, failed
+  created_at TIMESTAMP DEFAULT NOW(),
+  completed_at TIMESTAMP
+);
+
+-- API_KEYS TABLE
+CREATE TABLE api_keys (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  merchant_id UUID REFERENCES merchants(id),
+  key_hash VARCHAR(255) NOT NULL,
+  key_prefix VARCHAR(10) NOT NULL,
+  name VARCHAR(100),
+  last_used_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW(),
+  revoked_at TIMESTAMP
+);
+
+-- WEBHOOKS TABLE
+CREATE TABLE webhooks (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  merchant_id UUID REFERENCES merchants(id),
+  url VARCHAR(500) NOT NULL,
+  secret VARCHAR(255) NOT NULL,
+  events VARCHAR[] NOT NULL,
+  active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+
+7.3 API ENDPOINTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+AUTHENTICATION:
+- POST /api/auth/signup
+- POST /api/auth/login
+- POST /api/auth/logout
+- GET  /api/auth/me
+
+MERCHANTS:
+- GET    /api/merchants/me
+- PATCH  /api/merchants/me
+- POST   /api/merchants/wallet
+
+PAYMENTS:
+- POST   /api/payments/create-link
+- GET    /api/payments
+- GET    /api/payments/:id
+- POST   /api/payments/:id/refund (future)
+
+SUBSCRIPTIONS:
+- POST   /api/subscriptions/plans
+- GET    /api/subscriptions/plans
+- PATCH  /api/subscriptions/plans/:id
+- DELETE /api/subscriptions/plans/:id
+- GET    /api/subscriptions
+- GET    /api/subscriptions/:id
+- POST   /api/subscriptions/:id/cancel
+
+WITHDRAWALS:
+- POST   /api/withdrawals/link-bank
+- POST   /api/withdrawals/create
+- GET    /api/withdrawals
+- GET    /api/withdrawals/:id
+
+API KEYS:
+- POST   /api/keys/generate
+- GET    /api/keys
+- DELETE /api/keys/:id
+
+WEBHOOKS:
+- POST   /api/webhooks
+- GET    /api/webhooks
+- PATCH  /api/webhooks/:id
+- DELETE /api/webhooks/:id
+- POST   /api/webhooks/test
+
+WEBHOOK RECEIVERS:
+- POST   /api/webhooks/sphere
+- POST   /api/webhooks/loop
+
+
+7.4 TECHNOLOGY STACK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+FRONTEND:
+• Next.js 14 (App Router)
+• React 18
+• TypeScript
+• Tailwind CSS
+• shadcn/ui components
+• Recharts
+• @solana/wallet-adapter-react
+
+BACKEND:
+• Next.js API routes (serverless)
+• Node.js 18+
+• TypeScript
+
+DATABASE:
+• Supabase (PostgreSQL 15)
+• Prisma ORM
+
+PAYMENTS:
+• Sphere Labs SDK (@stratosphere-network/wallet)
+• Loop Crypto SDK
+• Solana Web3.js
+
+HOSTING:
+• Vercel (frontend + API)
+• Supabase (database)
+
+MONITORING:
+• Sentry (error tracking)
+• Vercel Analytics
+• PostHog (product analytics)
+
+
+================================================================================
+8. SECURITY & COMPLIANCE
+================================================================================
+
+8.1 SECURITY MEASURES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+AUTHENTICATION:
+✓ Secure password hashing (bcrypt, 10 rounds)
+✓ Email verification required
+✓ Session management via Supabase Auth
+✓ JWT tokens with expiration
+✓ Wallet signature verification
+
+API SECURITY:
+✓ API key authentication
+✓ Rate limiting (100 req/min per IP)
+✓ CORS configuration (restrictive)
+✓ Input validation on all endpoints
+✓ SQL injection protection (Prisma)
+✓ XSS protection (React sanitization)
+
+DATA PROTECTION:
+✓ Sphere API keys encrypted at rest (AES-256)
+✓ HTTPS only (TLS 1.3)
+✓ Environment variables for secrets
+✓ No sensitive data in logs
+✓ PII minimization
+
+WEBHOOK SECURITY:
+✓ Signature verification (HMAC SHA-256)
+✓ Replay attack prevention (timestamp check)
+✓ Secret rotation capability
+
+
+8.2 COMPLIANCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+KYC/AML:
+• Handled by Sphere Labs (PCI-DSS compliant)
+• Merchant verification via Sphere
+• Transaction monitoring by Sphere
+• Automated compliance reporting
+
+DATA PRIVACY:
+• GDPR compliant (for EU users)
+• Privacy policy published
+• Terms of service published
+• Data retention policy (7 years)
+• Right to deletion support
+
+FINANCIAL COMPLIANCE:
+• Not a money transmitter (Sphere holds licenses)
+• Not custody of customer funds
+• Merchant-to-merchant settlement model
+
+
+================================================================================
+9. TESTING STRATEGY
+================================================================================
+
+9.1 TESTING LEVELS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+UNIT TESTS:
+• All utility functions
+• API endpoint logic
+• Sphere SDK integration
+• Database queries
+• Target: 80% code coverage
+
+INTEGRATION TESTS:
+• Auth flow (signup → login → dashboard)
+• Payment creation → webhook → dashboard update
+• Subscription creation → billing → cancellation
+• Withdrawal request → Sphere → completion
+
+E2E TESTS (Manual for MVP):
+• Complete merchant onboarding
+• Create payment link → customer pays → merchant receives
+• Create subscription → customer subscribes → recurring billing
+• Withdraw funds → bank arrival
+
+PERFORMANCE TESTS:
+• Dashboard load time < 2s
+• API response time < 200ms
+• Payment creation < 500ms
+• 100 concurrent users supported
+
+
+9.2 TEST ENVIRONMENTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+DEVELOPMENT:
+• Local: localhost:3000
+• Supabase local instance
+• Sphere sandbox
+• Test USDC on Solana devnet
+
+STAGING:
+• Vercel preview deployment
+• Supabase staging project
+• Sphere sandbox
+• Solana devnet
+
+PRODUCTION:
+• Vercel production deployment
+• Supabase production
+• Sphere production
+• Solana mainnet
+
+
+================================================================================
+10. LAUNCH PLAN
+================================================================================
+
+10.1 PRE-LAUNCH CHECKLIST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+DEVELOPMENT:
+☐ All features implemented
+☐ Unit tests passing (80%+ coverage)
+☐ Integration tests passing
+☐ E2E tests completed manually
+☐ No critical bugs
+☐ Performance targets met
+
+INFRASTRUCTURE:
+☐ Production environment configured
+☐ Sphere production account active
+☐ Database backups enabled
+☐ Monitoring tools active (Sentry, analytics)
+☐ Domain configured (SSL)
+☐ Email service configured (transactional emails)
+
+DOCUMENTATION:
+☐ README with setup instructions
+☐ API documentation (Swagger/OpenAPI)
+☐ Merchant onboarding guide
+☐ Developer integration docs
+☐ Privacy policy
+☐ Terms of service
+
+COMPLIANCE & LEGAL:
+☐ Privacy policy reviewed
+☐ Terms of service reviewed
+☐ Cookie policy (if applicable)
+☐ GDPR compliance verified
+
+MARKETING:
+☐ Landing page live
+☐ Product description written
+☐ Screenshots prepared
+☐ Demo video recorded
+☐ Twitter account created
+☐ Product Hunt submission drafted
+
+
+10.2 LAUNCH SEQUENCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+DAY 1 (Thursday - Launch Day):
+• 09:00 - Final production testing
+• 10:00 - Deploy to production
+• 11:00 - Verify all systems operational
+• 12:00 - Soft launch (friends & family)
+• 14:00 - Twitter announcement
+• 15:00 - Submit to Product Hunt
+• 16:00 - Post in relevant communities (r/SaaS, IndieHackers)
+• 18:00 - Monitor metrics and fix critical bugs
+
+DAY 2-7 (Friday-Wednesday):
+• Monitor uptime and performance
+• Fix bugs reported by early users
+• Gather feedback
+• Iterate on UX issues
+• Support early adopters
+
+WEEK 2:
+• Analyze usage data
+• Prioritize feature requests
+• Plan next iteration
+• Marketing push (content, outreach)
+
+
+10.3 SUCCESS CRITERIA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+7 DAYS POST-LAUNCH:
+☑ 5+ merchants signed up
+☑ $100+ in payment volume
+☑ < 5 critical bugs
+☑ 95%+ uptime
+☑ All core features working
+
+30 DAYS POST-LAUNCH:
+☑ 10+ active merchants
+☑ $1,000+ in payment volume
+☑ 70%+ merchant retention (still using after 30 days)
+☑ < 10 total bugs reported
+☑ Net Promoter Score > 40
+☑ 1-2 testimonials from happy merchants
+
+
+================================================================================
+11. OUT OF SCOPE (POST-MVP)
+================================================================================
+
+FEATURES EXPLICITLY NOT IN MVP:
+✗ On-chain smart contract subscriptions
+✗ Custom payment UI (use Sphere hosted pages)
+✗ Multi-currency support (USDC only)
+✗ Advanced analytics dashboard
+✗ Automated tax filing
+✗ Team/multi-user accounts
+✗ White-label solutions
+✗ Mobile apps (iOS/Android)
+✗ Invoice generation
+✗ Discount codes/coupons
+✗ Refund automation
+✗ Chargeback handling (N/A for crypto)
+✗ Multi-chain support (Solana only)
+✗ Custom payment buttons/widgets
+✗ Zapier integration
+✗ Affiliate program
+✗ Referral system
+
+THESE CAN BE ADDED LATER BASED ON USER FEEDBACK
+
+
+================================================================================
+12. RISKS & MITIGATION
+================================================================================
+
+RISK 1: Sphere API downtime
+IMPACT: Critical - No payments processed
+MITIGATION: 
+  - Monitor Sphere status page
+  - Implement retry logic
+  - Show maintenance mode to users
+  - Consider fallback provider
+
+RISK 2: Low merchant adoption
+IMPACT: High - Product fails
+MITIGATION:
+  - Targeted outreach to early adopters
+  - Offer free tier for first 100 users
+  - Gather feedback and iterate quickly
+  - Lower barriers to entry
+
+RISK 3: USDC price volatility
+IMPACT: Medium - Merchants lose value
+MITIGATION:
+  - Encourage quick offramp to fiat
+  - Show conversion rate clearly
+  - Support stablecoin swaps (future)
+
+RISK 4: Security vulnerability
+IMPACT: Critical - Loss of funds/data
+MITIGATION:
+  - Security audit before launch
+  - Bug bounty program (post-launch)
+  - Regular dependency updates
+  - Monitoring and alerts
+
+RISK 5: Regulatory changes
+IMPACT: High - Forced shutdown or pivot
+MITIGATION:
+  - Monitor crypto regulations
+  - Use licensed provider (Sphere)
+  - Consult legal counsel
+  - Maintain compliance documentation
+
+
+================================================================================
+13. APPENDIX
+================================================================================
+
+13.1 GLOSSARY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+USDC: USD Coin, a stablecoin pegged 1:1 to US Dollar
+Solana: High-performance blockchain (400ms finality)
+Sphere Labs: Enterprise payment infrastructure on Solana
+Loop Crypto: Subscription billing platform for crypto
+MRR: Monthly Recurring Revenue
+Offramp: Converting cryptocurrency to fiat currency
+Onramp: Converting fiat currency to cryptocurrency
+SPL Token: Solana Program Library token standard
+Webhook: HTTP callback for event notifications
+
+
+13.2 REFERENCES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Sphere Documentation: https://docs.spherepay.co
+Loop Crypto Docs: https://loopcrypto.xyz/docs
+Solana Docs: https://docs.solana.com
+Supabase Docs: https://supabase.com/docs
+Next.js Docs: https://nextjs.org/docs
+shadcn/ui: https://ui.shadcn.com
+
+
+================================================================================
+END OF PRD
+================================================================================
+
+VERSION HISTORY:
+v1.0 - October 29, 2025 - Initial PRD for MVP

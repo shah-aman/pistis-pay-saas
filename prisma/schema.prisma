@@ -1,0 +1,148 @@
+// Prisma schema for SolaPay MVP
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Merchant {
+  id                      String   @id @default(uuid())
+  email                   String   @unique
+  businessName            String   @map("business_name")
+  country                 String
+  businessType            String   @map("business_type")
+  walletAddress           String?  @map("wallet_address")
+  sphereAccountId         String?  @map("sphere_account_id")
+  sphereApiKeyEncrypted   String?  @map("sphere_api_key_encrypted") @db.Text
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
+
+  payments                Payment[]
+  subscriptionPlans       SubscriptionPlan[]
+  subscriptions           Subscription[]
+  apiKeys                 ApiKey[]
+  webhooks                Webhook[]
+  withdrawals             Withdrawal[]
+
+  @@map("merchants")
+}
+
+model Payment {
+  id                      String    @id @default(uuid())
+  merchantId              String    @map("merchant_id")
+  spherePaymentId         String    @unique @map("sphere_payment_id")
+  customerWallet          String?   @map("customer_wallet")
+  amountUsdc              Decimal   @map("amount_usdc") @db.Decimal(18, 6)
+  status                  String    @default("pending")
+  description             String?   @db.Text
+  redirectUrl             String?   @map("redirect_url") @db.Text
+  metadata                Json?
+  txSignature             String?   @map("tx_signature")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  completedAt             DateTime? @map("completed_at")
+  
+  // MOR (Merchant of Record) fields
+  platformWalletReceived  Boolean   @default(false) @map("platform_wallet_received")
+  taxAmount               Decimal?  @map("tax_amount") @db.Decimal(18, 6)
+  taxCountry              String?   @map("tax_country")
+  taxRate                 Decimal?  @map("tax_rate") @db.Decimal(5, 2)
+  invoiceNumber           String?   @unique @map("invoice_number")
+  settlementStatus        String    @default("pending") @map("settlement_status") // pending, settled, failed
+  settledAt               DateTime? @map("settled_at")
+
+  merchant                Merchant  @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId])
+  @@index([status])
+  @@index([settlementStatus])
+  @@index([createdAt(sort: Desc)])
+  @@map("payments")
+}
+
+model SubscriptionPlan {
+  id              String   @id @default(uuid())
+  merchantId      String   @map("merchant_id")
+  planName        String   @map("plan_name")
+  amountUsdc      Decimal  @map("amount_usdc") @db.Decimal(18, 6)
+  billingPeriod   String   @map("billing_period")
+  trialDays       Int      @default(0) @map("trial_days")
+  loopPlanId      String?  @map("loop_plan_id")
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  merchant        Merchant       @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  subscriptions   Subscription[]
+
+  @@map("subscription_plans")
+}
+
+model Subscription {
+  id                    String    @id @default(uuid())
+  merchantId            String    @map("merchant_id")
+  planId                String    @map("plan_id")
+  customerWallet        String    @map("customer_wallet")
+  loopSubscriptionId    String?   @map("loop_subscription_id")
+  status                String    @default("active")
+  currentPeriodStart    DateTime  @map("current_period_start")
+  currentPeriodEnd      DateTime  @map("current_period_end")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  cancelledAt           DateTime? @map("cancelled_at")
+
+  merchant              Merchant         @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  plan                  SubscriptionPlan @relation(fields: [planId], references: [id])
+
+  @@index([merchantId])
+  @@index([status])
+  @@map("subscriptions")
+}
+
+model ApiKey {
+  id          String    @id @default(uuid())
+  merchantId  String    @map("merchant_id")
+  keyHash     String    @map("key_hash")
+  keyPrefix   String    @map("key_prefix")
+  name        String?
+  lastUsedAt  DateTime? @map("last_used_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  revokedAt   DateTime? @map("revoked_at")
+
+  merchant    Merchant  @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@map("api_keys")
+}
+
+model Webhook {
+  id          String   @id @default(uuid())
+  merchantId  String   @map("merchant_id")
+  url         String
+  secret      String
+  events      String[]
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  merchant    Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@map("webhooks")
+}
+
+model Withdrawal {
+  id                  String    @id @default(uuid())
+  merchantId          String    @map("merchant_id")
+  amountUsdc          Decimal   @map("amount_usdc") @db.Decimal(18, 6)
+  amountFiat          Decimal   @map("amount_fiat") @db.Decimal(18, 2)
+  currency            String
+  bankAccountLast4    String?   @map("bank_account_last4")
+  sphereWithdrawalId  String?   @map("sphere_withdrawal_id")
+  status              String    @default("pending")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  completedAt         DateTime? @map("completed_at")
+
+  merchant            Merchant  @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@map("withdrawals")
+}
+
+

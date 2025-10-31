@@ -3,6 +3,9 @@ import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { NewUser } from '@/lib/db/schema';
 
+// Note: This file contains legacy session functions that are not used with Supabase auth
+// Kept for backward compatibility but should be removed once all references are updated
+
 const key = new TextEncoder().encode(process.env.AUTH_SECRET);
 const SALT_ROUNDS = 10;
 

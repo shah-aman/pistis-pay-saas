@@ -1,15 +1,13 @@
+// Stub payment actions file
+// TODO: Implement subscription management with Loop Crypto
+
 'use server';
 
 import { redirect } from 'next/navigation';
-import { createCheckoutSession, createCustomerPortalSession } from './stripe';
-import { withTeam } from '@/lib/auth/middleware';
 
-export const checkoutAction = withTeam(async (formData, team) => {
-  const priceId = formData.get('priceId') as string;
-  await createCheckoutSession({ team: team, priceId });
-});
+export async function customerPortalAction() {
+  // TODO: Implement Loop Crypto customer portal redirect
+  // For now, redirect to settings page
+  redirect('/dashboard/settings');
+}
 
-export const customerPortalAction = withTeam(async (_, team) => {
-  const portalSession = await createCustomerPortalSession(team);
-  redirect(portalSession.url);
-});
