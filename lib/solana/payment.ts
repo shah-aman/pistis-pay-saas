@@ -5,13 +5,17 @@ import {
   SystemProgram,
   LAMPORTS_PER_SOL,
   TransactionInstruction,
+  Keypair,
 } from '@solana/web3.js';
 import {
   createTransferCheckedInstruction,
   getAssociatedTokenAddress,
+  createAssociatedTokenAccountInstruction,
+  getAccount,
   TOKEN_PROGRAM_ID,
 } from '@solana/spl-token';
 import { encodeURL, createQR, EncodeURLComponents } from '@solana/pay';
+import BigNumber from 'bignumber.js';
 import {
   SOLANA_RPC_URL,
   getUsdcMint,
@@ -22,36 +26,69 @@ import {
 } from './constants';
 
 /**
+ * Create a deterministic reference PublicKey from a payment ID
+ * Uses SHA-256 hash of the payment ID to generate a valid PublicKey
+ * Works in both Node.js and browser environments
+ */
+async function createReferencePublicKey(paymentId: string): Promise<PublicKey> {
+  // Use SHA-256 to hash the payment ID into a 32-byte value
+  // Works in both Node.js and browser (Web Crypto API)
+  let hash: Uint8Array;
+  
+  if (typeof window !== 'undefined' && window.crypto && window.crypto.subtle) {
+    // Browser environment - use Web Crypto API
+    const encoder = new TextEncoder();
+    const data = encoder.encode(paymentId);
+    const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
+    hash = new Uint8Array(hashBuffer);
+  } else {
+    // Node.js environment - use Node's crypto module
+    const crypto = await import('crypto');
+    const hashBuffer = crypto.createHash('sha256').update(paymentId).digest();
+    hash = new Uint8Array(hashBuffer);
+  }
+  
+  // Create a keypair from the hash seed (first 32 bytes)
+  // This ensures we get a valid PublicKey
+  const seed = hash.slice(0, 32);
+  const keypair = Keypair.fromSeed(seed);
+  
+  return keypair.publicKey;
+}
+
+/**
  * Create a Solana Pay URL for a USDC payment
  * This generates a URL that can be encoded in a QR code or used as a deep link
  */
-export function createPaymentUrl(
+export async function createPaymentUrl(
   amount: number,
   paymentId: string,
   label?: string,
   message?: string
-): URL {
-  const recipient = getPlatformWallet();
-  const usdcMint = getUsdcMint();
+): Promise<URL> {
+  try {
+    const recipient = getPlatformWallet();
+    const usdcMint = getUsdcMint();
 
-  // Create reference public key from payment ID
-  // This helps us track which payment this transaction is for
-  const reference = new PublicKey(
-    // Convert payment ID to a valid public key by hashing it
-    // For now, we'll use a deterministic approach
-    Buffer.from(paymentId.padEnd(32, '0').slice(0, 32))
-  );
+    // Create reference public key from payment ID using deterministic hashing
+    const reference = await createReferencePublicKey(paymentId);
 
-  const urlParams: EncodeURLComponents = {
-    recipient,
-    amount,
-    splToken: usdcMint,
-    reference,
-    label: label || 'SolaPay Checkout',
-    message: message || `Payment ${paymentId}`,
-  };
+    const urlParams: EncodeURLComponents = {
+      recipient,
+      amount: new BigNumber(amount),
+      splToken: usdcMint,
+      reference,
+      label: label || 'SolaPay Checkout',
+      message: message || `Payment ${paymentId}`,
+    };
 
-  return encodeURL(urlParams);
+    return encodeURL(urlParams);
+  } catch (error) {
+    console.error('[Solana Pay] Error creating payment URL:', error);
+    throw new Error(
+      `Failed to create payment URL: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
 }
 
 /**
@@ -63,53 +100,120 @@ export async function createTransferTransaction(
   amount: number,
   paymentId: string
 ): Promise<Transaction> {
-  const connection = new Connection(SOLANA_RPC_URL, COMMITMENT);
-  const recipient = getPlatformWallet();
-  const usdcMint = getUsdcMint();
+  try {
+    const connection = new Connection(SOLANA_RPC_URL, COMMITMENT);
+    const recipient = getPlatformWallet();
+    const usdcMint = getUsdcMint();
 
-  // Get associated token accounts
-  const payerTokenAccount = await getAssociatedTokenAddress(
-    usdcMint,
-    payerPublicKey
-  );
+    console.log('[Solana] Creating transaction:', {
+      payer: payerPublicKey.toBase58(),
+      recipient: recipient.toBase58(),
+      amount,
+      mint: usdcMint.toBase58(),
+    });
 
-  const recipientTokenAccount = await getAssociatedTokenAddress(
-    usdcMint,
-    recipient
-  );
+    // Get associated token accounts
+    const payerTokenAccount = await getAssociatedTokenAddress(
+      usdcMint,
+      payerPublicKey
+    );
 
-  // Convert amount to token decimals (USDC has 6 decimals)
-  const amountInSmallestUnit = Math.floor(amount * 1_000_000);
+    const recipientTokenAccount = await getAssociatedTokenAddress(
+      usdcMint,
+      recipient
+    );
 
-  // Create transfer instruction
-  const transferInstruction = createTransferCheckedInstruction(
-    payerTokenAccount,
-    usdcMint,
-    recipientTokenAccount,
-    payerPublicKey,
-    amountInSmallestUnit,
-    6 // USDC decimals
-  );
+    console.log('[Solana] Token accounts:', {
+      payer: payerTokenAccount.toBase58(),
+      recipient: recipientTokenAccount.toBase58(),
+    });
 
-  // Add memo instruction with payment ID for tracking
-  const memoInstruction = new TransactionInstruction({
-    keys: [],
-    programId: new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr'),
-    data: Buffer.from(`SolaPay:${paymentId}`, 'utf-8'),
-  });
+    // Create transaction
+    const transaction = new Transaction();
 
-  // Create transaction
-  const transaction = new Transaction();
-  transaction.add(transferInstruction);
-  transaction.add(memoInstruction);
+    // Check if payer token account exists and has sufficient balance
+    let payerBalance = 0;
+    try {
+      const accountInfo = await getAccount(connection, payerTokenAccount);
+      payerBalance = Number(accountInfo.amount) / 1_000_000; // Convert to USDC (6 decimals)
+      console.log('[Solana] Payer token account exists with balance:', payerBalance, 'USDC');
+      
+      // Check if sufficient balance
+      if (payerBalance < amount) {
+        throw new Error(
+          `Insufficient USDC balance. You have ${payerBalance} USDC but need ${amount} USDC. ` +
+          `Please get Circle USDC on devnet from https://faucet.circle.com/ (mint: 4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU)`
+        );
+      }
+    } catch (error: any) {
+      if (error.message.includes('Insufficient USDC balance')) {
+        throw error;
+      }
+      console.log('[Solana] Payer token account does not exist, will create it');
+      console.warn('[Solana] Note: You will need to add USDC tokens after account creation');
+      transaction.add(
+        createAssociatedTokenAccountInstruction(
+          payerPublicKey, // payer
+          payerTokenAccount, // associated token account
+          payerPublicKey, // owner
+          usdcMint // mint
+        )
+      );
+    }
 
-  // Get recent blockhash
-  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash(COMMITMENT);
-  transaction.recentBlockhash = blockhash;
-  transaction.lastValidBlockHeight = lastValidBlockHeight;
-  transaction.feePayer = payerPublicKey;
+    // Check if recipient token account exists, if not add instruction to create it
+    try {
+      await getAccount(connection, recipientTokenAccount);
+      console.log('[Solana] Recipient token account exists');
+    } catch (error) {
+      console.log('[Solana] Creating recipient token account...');
+      transaction.add(
+        createAssociatedTokenAccountInstruction(
+          payerPublicKey, // payer (user pays for account creation)
+          recipientTokenAccount, // associated token account
+          recipient, // owner
+          usdcMint // mint
+        )
+      );
+    }
 
-  return transaction;
+    // Convert amount to token decimals (USDC has 6 decimals)
+    const amountInSmallestUnit = Math.floor(amount * 1_000_000);
+
+    // Create transfer instruction
+    const transferInstruction = createTransferCheckedInstruction(
+      payerTokenAccount,
+      usdcMint,
+      recipientTokenAccount,
+      payerPublicKey,
+      amountInSmallestUnit,
+      6 // USDC decimals
+    );
+
+    transaction.add(transferInstruction);
+
+    // Add memo instruction with payment ID for tracking
+    const memoInstruction = new TransactionInstruction({
+      keys: [],
+      programId: new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr'),
+      data: Buffer.from(`SolaPay:${paymentId}`, 'utf-8'),
+    });
+
+    transaction.add(memoInstruction);
+
+    // Get recent blockhash
+    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash(COMMITMENT);
+    transaction.recentBlockhash = blockhash;
+    transaction.lastValidBlockHeight = lastValidBlockHeight;
+    transaction.feePayer = payerPublicKey;
+
+    console.log('[Solana] Transaction created with', transaction.instructions.length, 'instructions');
+
+    return transaction;
+  } catch (error) {
+    console.error('[Solana] Error creating transaction:', error);
+    throw error;
+  }
 }
 
 /**
@@ -251,7 +355,7 @@ export async function generatePaymentQR(
   label?: string,
   message?: string
 ): Promise<string> {
-  const url = createPaymentUrl(amount, paymentId, label, message);
+  const url = await createPaymentUrl(amount, paymentId, label, message);
   const qr = createQR(url, 512, 'transparent');
   
   // Convert QR code to data URL

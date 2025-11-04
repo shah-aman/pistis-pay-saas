@@ -158,6 +158,16 @@ export async function signUp(prevState: any, formData: FormData) {
       path: '/', // Ensure cookie is available for all routes
     });
 
+    // Check if merchant needs onboarding (has default business name)
+    const merchant = await prisma.merchant.findUnique({
+      where: { id: authData.user.id },
+    });
+
+    // Redirect to onboarding if merchant has default business name (not yet onboarded)
+    if (merchant && merchant.businessName.includes("'s Business")) {
+      redirect('/onboarding');
+    }
+
     redirect('/dashboard');
   } catch (error) {
     // Re-throw redirect errors (Next.js uses these for navigation)

@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
 
     // Fetch payment from database
     const payment = await prisma.payment.findUnique({
-      where: { spherePaymentId: paymentId },
+      where: { id: paymentId },
       include: {
         merchant: true,
       },
@@ -63,14 +63,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Wait for transaction confirmation (with timeout)
+    console.log('[Payment Confirmation] Waiting for transaction:', signature);
     const confirmed = await waitForTransactionConfirmation(signature, 30);
 
     if (!confirmed) {
+      console.error('[Payment Confirmation] Transaction not confirmed after 30 retries');
       return NextResponse.json(
-        { error: 'Transaction confirmation timeout' },
+        { 
+          error: 'Transaction not confirmed on Solana network. Please check the transaction on Solana Explorer.',
+          signature,
+          explorerUrl: `https://explorer.solana.com/tx/${signature}?cluster=devnet`
+        },
         { status: 408 }
       );
     }
+
+    console.log('[Payment Confirmation] Transaction confirmed:', signature);
 
     // Calculate expected amount
     const subtotal = parseFloat(payment.amountUsdc.toString());
@@ -147,4 +155,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
 

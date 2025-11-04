@@ -5,10 +5,10 @@ import { detectCountryFromHeaders } from '@/lib/geo/detect-country';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { paymentId: string } }
+  { params }: { params: Promise<{ paymentId: string }> }
 ) {
   try {
-    const paymentId = params.paymentId;
+    const { paymentId } = await params;
 
     if (!paymentId) {
       return NextResponse.json(
@@ -93,10 +93,10 @@ export async function GET(
 // Update payment with customer's selected country for tax calculation
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { paymentId: string } }
+  { params }: { params: Promise<{ paymentId: string }> }
 ) {
   try {
-    const paymentId = params.paymentId;
+    const { paymentId } = await params;
     const body = await request.json();
     const { country } = body;
 
@@ -157,4 +157,5 @@ export async function PATCH(
     );
   }
 }
+
 

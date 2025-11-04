@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
 
     // Fetch payment from database
     const payment = await prisma.payment.findUnique({
-      where: { spherePaymentId: paymentId },
+      where: { id: paymentId },
       include: {
         merchant: true,
       },
@@ -132,4 +132,5 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
 

@@ -17,6 +17,27 @@ model Merchant {
   walletAddress           String?  @map("wallet_address")
   sphereAccountId         String?  @map("sphere_account_id")
   sphereApiKeyEncrypted   String?  @map("sphere_api_key_encrypted") @db.Text
+  
+  // SpherePay Customer Onboarding fields
+  sphereCustomerId        String?  @unique @map("sphere_customer_id")
+  kycStatus               String?  @default("pending") @map("kyc_status") // pending, in_progress, verified, rejected
+  tosAcceptedAt           DateTime? @map("tos_accepted_at")
+  sphereBankAccountId     String?  @map("sphere_bank_account_id")
+  
+  // Business address for SpherePay registration
+  addressLine1            String?  @map("address_line1")
+  addressLine2            String?  @map("address_line2")
+  addressCity             String?  @map("address_city")
+  addressPostalCode       String?  @map("address_postal_code")
+  addressState            String?  @map("address_state")
+  addressCountry          String?  @map("address_country")
+  phoneNumber             String?  @map("phone_number")
+  
+  // Onboarding tracking
+  onboardingCompleted     Boolean  @default(false) @map("onboarding_completed")
+  onboardingCompletedAt   DateTime? @map("onboarding_completed_at")
+  onboardingSkippedAt     DateTime? @map("onboarding_skipped_at")
+  
   createdAt               DateTime @default(now()) @map("created_at")
   updatedAt               DateTime @updatedAt @map("updated_at")
 
@@ -52,6 +73,10 @@ model Payment {
   invoiceNumber           String?   @unique @map("invoice_number")
   settlementStatus        String    @default("pending") @map("settlement_status") // pending, settled, failed
   settledAt               DateTime? @map("settled_at")
+  
+  // Email invoice tracking
+  emailSentAt             DateTime? @map("email_sent_at")
+  emailSentTo             String?   @map("email_sent_to")
 
   merchant                Merchant  @relation(fields: [merchantId], references: [id], onDelete: Cascade)
 

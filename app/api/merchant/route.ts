@@ -27,6 +27,13 @@ export async function GET() {
         country: true,
         businessType: true,
         walletAddress: true,
+        sphereCustomerId: true,
+        kycStatus: true,
+        tosAcceptedAt: true,
+        sphereBankAccountId: true,
+        onboardingCompleted: true,
+        onboardingCompletedAt: true,
+        onboardingSkippedAt: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -79,4 +86,5 @@ export async function PATCH(request: NextRequest) {
     );
   }
 }
+
 

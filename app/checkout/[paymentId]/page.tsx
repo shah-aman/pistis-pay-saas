@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
 import { SolanaPayCheckout } from '@/components/checkout/solana-pay-checkout';
@@ -30,9 +31,10 @@ interface CheckoutData {
   };
 }
 
-export default function CheckoutPage({ params }: { params: { paymentId: string } }) {
+export default function CheckoutPage({ params }: { params: Promise<{ paymentId: string }> }) {
   const router = useRouter();
-  const { paymentId } = params;
+  const resolvedParams = React.use(params);
+  const { paymentId } = resolvedParams;
   
   const { data, error, isLoading, mutate } = useSWR<CheckoutData>(
     `/api/checkout/${paymentId}`,

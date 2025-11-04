@@ -5,6 +5,13 @@ import {
   SpherePayment,
   SpherePaymentLink,
   SphereWithdrawal,
+  CreateSphereCustomerParams,
+  SphereCustomer,
+  SphereTosLink,
+  SphereKycLink,
+  SphereCustomerStatus,
+  CreateSphereBankAccountParams,
+  SphereBankAccount,
 } from '@/types/sphere';
 
 // Base Sphere API configuration
@@ -265,13 +272,151 @@ export class SphereClient {
   async listWithdrawals(): Promise<{ data: SphereWithdrawal[]; total: number }> {
     return this.request<{ data: SphereWithdrawal[]; total: number }>('/v1/withdrawals');
   }
+
+  /**
+   * Create a customer in SpherePay (v2 API)
+   * Reference: https://docs.spherepay.co/api-reference/customer/post/
+   */
+  async createCustomer(params: CreateSphereCustomerParams): Promise<SphereCustomer> {
+    console.log('[Sphere API] Creating customer with params:', JSON.stringify(params, null, 2));
+    console.log('[Sphere API] API Key present:', !!this.apiKey);
+    console.log('[Sphere API] API Key prefix:', this.apiKey?.substring(0, 10) + '...');
+    
+    // TEMPORARY: Mock mode for development while API key permissions are being resolved
+    if (process.env.SPHERE_MOCK_MODE === 'true') {
+      console.log('[Sphere API] MOCK MODE: Returning fake customer');
+      const mockCustomer: SphereCustomer = {
+        id: `customer_mock_${Date.now()}`,
+        type: params.type,
+        email: params.email,
+        phoneNumber: params.phoneNumber,
+        address: params.address,
+        status: 'active',
+        createdAt: new Date().toISOString(),
+      };
+      return mockCustomer;
+    }
+    
+    return this.request<SphereCustomer>('/v2/customer', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    });
+  }
+
+  /**
+   * Generate TOS (Terms of Service) link for customer
+   * Reference: https://docs.spherepay.co/api-reference/customer/tos/
+   */
+  async generateTosLink(customerId: string): Promise<SphereTosLink> {
+    // TEMPORARY: Mock mode for development
+    if (process.env.SPHERE_MOCK_MODE === 'true') {
+      console.log('[Sphere API] MOCK MODE: Returning fake TOS link');
+      return {
+        url: `https://mock-sphere.com/tos/${customerId}`,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      };
+    }
+    
+    return this.request<SphereTosLink>(`/v2/customer/${customerId}/tos-link`, {
+      method: 'POST',
+    });
+  }
+
+  /**
+   * Generate KYC/KYB link for customer
+   * Reference: https://docs.spherepay.co/api-reference/customer/kyc/
+   */
+  async generateKycLink(customerId: string): Promise<SphereKycLink> {
+    // TEMPORARY: Mock mode for development
+    if (process.env.SPHERE_MOCK_MODE === 'true') {
+      console.log('[Sphere API] MOCK MODE: Returning fake KYC link');
+      return {
+        url: `https://mock-sphere.com/kyc/${customerId}`,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      };
+    }
+    
+    return this.request<SphereKycLink>(`/v2/customer/${customerId}/kyc-link`, {
+      method: 'POST',
+    });
+  }
+
+  /**
+   * Get customer status including KYC and TOS completion
+   * Reference: https://docs.spherepay.co/api-reference/customer/get/
+   */
+  async getCustomerStatus(customerId: string): Promise<SphereCustomerStatus> {
+    // TEMPORARY: Mock mode for development
+    if (process.env.SPHERE_MOCK_MODE === 'true') {
+      console.log('[Sphere API] MOCK MODE: Returning fake customer status');
+      return {
+        id: customerId,
+        status: 'active',
+        kycStatus: 'verified',
+        tosAccepted: true,
+        tosAcceptedAt: new Date().toISOString(),
+      };
+    }
+    
+    return this.request<SphereCustomerStatus>(`/v2/customer/${customerId}`);
+  }
+
+  /**
+   * Register a bank account for the customer
+   * Reference: https://docs.spherepay.co/api-reference/bank-account/post/
+   */
+  async registerBankAccount(
+    customerId: string,
+    params: CreateSphereBankAccountParams
+  ): Promise<SphereBankAccount> {
+    // TEMPORARY: Mock mode for development
+    if (process.env.SPHERE_MOCK_MODE === 'true') {
+      console.log('[Sphere API] MOCK MODE: Returning fake bank account');
+      return {
+        id: `bank_mock_${Date.now()}`,
+        status: 'active',
+        bankName: params.bankName,
+        accountHolderName: params.accountHolderName,
+        accountName: params.accountName,
+        customer: customerId,
+        currency: params.currency,
+        accountDetails: {
+          accountNumber: '****' + params.accountDetails.accountNumber.slice(-4),
+          routingNumber: '****' + params.accountDetails.routingNumber.slice(-4),
+          accountType: params.accountDetails.accountType,
+        },
+        createdAt: new Date().toISOString(),
+      };
+    }
+    
+    return this.request<SphereBankAccount>(`/v2/customers/${customerId}/bank-account`, {
+      method: 'POST',
+      body: JSON.stringify(params),
+    });
+  }
+
+  /**
+   * Get bank accounts for a customer
+   */
+  async getBankAccounts(customerId: string): Promise<SphereBankAccount[]> {
+    const response = await this.request<{ data: SphereBankAccount[] }>(
+      `/v2/customers/${customerId}/bank-accounts`
+    );
+    return response.data || [];
+  }
 }
 
 // Helper to create Sphere client with merchant's API key
 export function createSphereClient(apiKey?: string): SphereClient {
   const key = apiKey || process.env.SPHERE_API_KEY;
+  
+  console.log('[Sphere Client] Creating client...');
+  console.log('[Sphere Client] API Key from env:', process.env.SPHERE_API_KEY ? 'Present' : 'MISSING');
+  console.log('[Sphere Client] Using API Key:', key ? `${key.substring(0, 10)}...` : 'NONE');
+  console.log('[Sphere Client] API Base URL:', SPHERE_API_BASE_URL);
+  
   if (!key) {
-    throw new Error('Sphere API key not provided');
+    throw new Error('Sphere API key not provided. Please set SPHERE_API_KEY environment variable.');
   }
   return new SphereClient(key);
 }

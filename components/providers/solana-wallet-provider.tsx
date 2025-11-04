@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
+import { clusterApiUrl } from '@solana/web3.js';
 import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';
 import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
 import {
@@ -9,12 +10,21 @@ import {
   TorusWalletAdapter,
   LedgerWalletAdapter,
 } from '@solana/wallet-adapter-wallets';
-import { SOLANA_RPC_URL } from '@/lib/solana/constants';
 
 // Import wallet adapter CSS
 import '@solana/wallet-adapter-react-ui/styles.css';
 
 export function SolanaWalletProvider({ children }: { children: React.ReactNode }) {
+  // Get RPC endpoint with fallback
+  const endpoint = useMemo(() => {
+    const rpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
+    if (rpcUrl) {
+      return rpcUrl;
+    }
+    // Default to devnet
+    return clusterApiUrl('devnet');
+  }, []);
+
   // Configure supported wallets
   const wallets = useMemo(
     () => [
@@ -27,7 +37,7 @@ export function SolanaWalletProvider({ children }: { children: React.ReactNode }
   );
 
   return (
-    <ConnectionProvider endpoint={SOLANA_RPC_URL}>
+    <ConnectionProvider endpoint={endpoint}>
       <WalletProvider wallets={wallets} autoConnect={false}>
         <WalletModalProvider>
           {children}
@@ -36,4 +46,5 @@ export function SolanaWalletProvider({ children }: { children: React.ReactNode }
     </ConnectionProvider>
   );
 }
+
 

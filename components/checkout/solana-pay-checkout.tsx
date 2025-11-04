@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useWallet } from '@solana/wallet-adapter-react';
+import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { Transaction } from '@solana/web3.js';
 import { QRCodeSVG } from 'qrcode.react';
@@ -28,6 +28,7 @@ export function SolanaPayCheckout({
   onError,
 }: SolanaPayCheckoutProps) {
   const { publicKey, sendTransaction, connected } = useWallet();
+  const { connection } = useConnection();
   const [status, setStatus] = useState<PaymentStatus>('idle');
   const [error, setError] = useState<string | null>(null);
   const [paymentUrl, setPaymentUrl] = useState<string>('');
@@ -35,19 +36,33 @@ export function SolanaPayCheckout({
 
   // Generate payment URL and QR code
   useEffect(() => {
-    try {
-      const url = createPaymentUrl(
-        amount,
-        paymentId,
-        merchantName,
-        description || `Payment to ${merchantName}`
-      );
-      setPaymentUrl(url.toString());
-    } catch (err) {
-      console.error('[SolanaPay] Failed to generate payment URL:', err);
-      setError('Failed to generate payment URL');
-      onError?.(err instanceof Error ? err : new Error('Failed to generate payment URL'));
-    }
+    let isMounted = true;
+
+    const generateUrl = async () => {
+      try {
+        const url = await createPaymentUrl(
+          amount,
+          paymentId,
+          merchantName,
+          description || `Payment to ${merchantName}`
+        );
+        if (isMounted) {
+          setPaymentUrl(url.toString());
+        }
+      } catch (err) {
+        console.error('[SolanaPay] Failed to generate payment URL:', err);
+        if (isMounted) {
+          setError('Failed to generate payment URL');
+          onError?.(err instanceof Error ? err : new Error('Failed to generate payment URL'));
+        }
+      }
+    };
+
+    generateUrl();
+
+    return () => {
+      isMounted = false;
+    };
   }, [amount, paymentId, merchantName, description, onError]);
 
   // Handle wallet payment
@@ -83,15 +98,38 @@ export function SolanaPayCheckout({
       const transaction = Transaction.from(transactionBuffer);
 
       // Send transaction via wallet
-      const sig = await sendTransaction(transaction, {
-        skipPreflight: false,
-        maxRetries: 3,
+      console.log('[SolanaPay] Sending transaction...', {
+        from: publicKey.toBase58(),
+        paymentId,
+        instructions: transaction.instructions.length,
       });
+      
+      let sig: string;
+      try {
+        sig = await sendTransaction(transaction, connection, {
+          skipPreflight: true, // Skip preflight to avoid simulation errors
+          maxRetries: 3,
+        });
+        console.log('[SolanaPay] Transaction sent successfully:', sig);
+      } catch (sendError: any) {
+        console.error('[SolanaPay] Send transaction error details:', {
+          message: sendError?.message,
+          code: sendError?.code,
+          name: sendError?.name,
+          stack: sendError?.stack,
+        });
+        
+        // Check if transaction might have been sent despite error
+        // Some wallets throw errors even when transaction succeeds
+        throw sendError;
+      }
 
       setSignature(sig);
       setStatus('confirming');
 
       // Confirm payment with server
+      console.log('[SolanaPay] Confirming payment with server...', { paymentId, signature: sig });
+      
       const confirmResponse = await fetch('/api/payments/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -103,8 +141,20 @@ export function SolanaPayCheckout({
 
       if (!confirmResponse.ok) {
         const errorData = await confirmResponse.json();
+        console.error('[SolanaPay] Confirmation failed:', errorData);
+        
+        // If we have an explorer URL, show it
+        if (errorData.explorerUrl) {
+          const explorerError = new Error(
+            `${errorData.error || 'Payment confirmation failed'}. Check transaction: ${errorData.explorerUrl}`
+          );
+          throw explorerError;
+        }
+        
         throw new Error(errorData.error || 'Payment confirmation failed');
       }
+      
+      console.log('[SolanaPay] Payment confirmed by server');
 
       const confirmData = await confirmResponse.json();
 
@@ -120,14 +170,45 @@ export function SolanaPayCheckout({
       } else {
         throw new Error('Payment verification failed');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('[SolanaPay] Payment error:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Payment failed';
+      
+      // Check if this is just a wallet adapter error but transaction might have been sent
+      // Some wallets throw "Unexpected error" even when transaction succeeds
+      if (err?.name === 'WalletSendTransactionError' && err?.message === 'Unexpected error') {
+        console.warn('[SolanaPay] Wallet threw unexpected error, but transaction may have been sent');
+        console.warn('[SolanaPay] Please check your wallet for the transaction signature');
+        
+        // Show a more helpful message
+        setError('Transaction was sent but wallet returned an error. Please check your wallet history or try again in a moment.');
+        setStatus('error');
+        onError?.(new Error('Please check your wallet - transaction may have been sent'));
+        return;
+      }
+      
+      // Parse error for better user feedback
+      let errorMessage = 'Payment failed';
+      
+      if (err?.message) {
+        errorMessage = err.message;
+        
+        // Check for common Solana errors
+        if (err.message.includes('0x1')) {
+          errorMessage = 'Insufficient SOL for transaction fees. Please add devnet SOL to your wallet.';
+        } else if (err.message.includes('0x0')) {
+          errorMessage = 'Insufficient USDC balance. Please add devnet USDC to your wallet.';
+        } else if (err.message.includes('account not found') || err.message.includes('could not find account')) {
+          errorMessage = 'USDC token account not found. You may need devnet USDC tokens first.';
+        } else if (err.message.includes('User rejected')) {
+          errorMessage = 'Transaction was rejected by wallet.';
+        }
+      }
+      
       setError(errorMessage);
       setStatus('error');
       onError?.(err instanceof Error ? err : new Error(errorMessage));
     }
-  }, [publicKey, connected, paymentId, sendTransaction, onSuccess, onError]);
+  }, [publicKey, connected, paymentId, connection, sendTransaction, onSuccess, onError]);
 
   // Loading state
   if (!paymentUrl) {

@@ -284,3 +284,5 @@ export default function ReceiptPage() {
   return <PaymentReceipt receipt={data.receipt} />;
 }
 
+
+

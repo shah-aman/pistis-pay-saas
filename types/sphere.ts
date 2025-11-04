@@ -76,4 +76,82 @@ export interface ListPaymentsFilters {
   offset?: number;
 }
 
+// Customer Onboarding Types (SpherePay v2)
+export interface SphereCustomerAddress {
+  line1: string;
+  line2?: string;
+  city: string;
+  postalCode: string;
+  state: string;
+  country: string;
+}
+
+export interface CreateSphereCustomerParams {
+  type: 'individual' | 'business';
+  address: SphereCustomerAddress;
+  email?: string;
+  phoneNumber?: string;
+}
+
+export interface SphereCustomer {
+  id: string;
+  type: 'individual' | 'business';
+  email?: string;
+  phoneNumber?: string;
+  address: SphereCustomerAddress;
+  status: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface SphereTosLink {
+  url: string;
+  expiresAt?: string;
+}
+
+export interface SphereKycLink {
+  url: string;
+  expiresAt?: string;
+}
+
+export interface SphereCustomerStatus {
+  id: string;
+  status: string;
+  kycStatus?: 'pending' | 'in_progress' | 'verified' | 'rejected';
+  tosAccepted?: boolean;
+  tosAcceptedAt?: string;
+  bankAccounts?: SphereBankAccount[];
+}
+
+export interface SphereBankAccountDetails {
+  accountNumber: string;
+  routingNumber: string;
+  accountType: 'checking' | 'savings';
+}
+
+export interface CreateSphereBankAccountParams {
+  accountName: string;
+  bankName: string;
+  accountHolderName: string;
+  currency: 'usd' | 'eur' | 'brl' | 'cad' | 'cop' | 'idr' | 'inr' | 'mxn' | 'php' | 'sgd' | 'thb' | 'vnd' | 'gbp';
+  accountDetails: SphereBankAccountDetails;
+  beneficiaryAddress: SphereCustomerAddress;
+}
+
+export interface SphereBankAccount {
+  id: string;
+  status: 'pending' | 'active' | 'rejected';
+  bankName: string;
+  accountHolderName: string;
+  accountName: string;
+  customer: string;
+  currency: string;
+  accountDetails: {
+    accountNumber: string; // masked
+    routingNumber: string; // masked
+    accountType: 'checking' | 'savings';
+  };
+  createdAt?: string;
+}
+
 

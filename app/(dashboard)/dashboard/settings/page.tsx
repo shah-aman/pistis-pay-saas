@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { BankAccountManager } from '@/components/dashboard/bank-account-manager';
 import useSWR from 'swr';
 import { Loader2 } from 'lucide-react';
 
@@ -17,6 +18,9 @@ interface Merchant {
   country: string;
   businessType: string;
   walletAddress: string | null;
+  sphereCustomerId?: string | null;
+  sphereBankAccountId?: string | null;
+  kycStatus?: string | null;
 }
 
 export default function SettingsPage() {
@@ -195,6 +199,12 @@ export default function SettingsPage() {
           </form>
         </CardContent>
       </Card>
+
+      {/* Bank Account Management */}
+      <BankAccountManager
+        sphereCustomerId={data?.merchant?.sphereCustomerId}
+        existingBankAccountId={data?.merchant?.sphereBankAccountId}
+      />
     </section>
   );
 }
